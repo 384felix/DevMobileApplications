@@ -1,0 +1,18 @@
+{
+  "cwd": "/Users/felix/Documents/GIT_repositorys/DevMobileApplications/02_mobioeapp",
+  "type": [
+    "web"
+  ],
+  "name": "My second app",
+  "framework": "react",
+  "template": "tabs",
+  "bundler": "vite",
+  "cssPreProcessor": false,
+  "theming": {
+    "customColor": true,
+    "color": "#451f1f",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}
