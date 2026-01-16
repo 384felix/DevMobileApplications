@@ -9,6 +9,7 @@ import SettingsPage from '../pages/settings.jsx';
 import DynamicRoutePage from '../pages/dynamic-route.jsx';
 import RequestAndLoad from '../pages/request-and-load.jsx';
 import NotFoundPage from '../pages/404.jsx';
+import SudokuPage from '../pages/sudoku.jsx';
 
 var routes = [
   {
@@ -34,6 +35,11 @@ var routes = [
   {
     path: '/settings/',
     component: SettingsPage,
+  },
+
+  {
+    path: '/sudoku/',
+    component: SudokuPage,
   },
 
   {
