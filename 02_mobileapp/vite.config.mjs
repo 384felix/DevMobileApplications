@@ -1,5 +1,9 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 import react from '@vitejs/plugin-react';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SRC_DIR = path.resolve(__dirname, './src');
 const PUBLIC_DIR = path.resolve(__dirname, './public');
@@ -10,7 +14,7 @@ export default async ({ command }) => {
     plugins: [react()],
     root: SRC_DIR,
 
-    // ✅ KORREKT für DevMobileApplications
+    // ✅ für GitHub Pages (Repo: DevMobileApplications)
     base: command === 'serve' ? '/' : '/DevMobileApplications/',
 
     publicDir: PUBLIC_DIR,
@@ -18,17 +22,11 @@ export default async ({ command }) => {
       outDir: BUILD_DIR,
       assetsInlineLimit: 0,
       emptyOutDir: true,
-      rollupOptions: {
-        treeshake: false,
-      },
+      rollupOptions: { treeshake: false },
     },
     resolve: {
-      alias: {
-        '@': SRC_DIR,
-      },
+      alias: { '@': SRC_DIR },
     },
-    server: {
-      host: true,
-    },
+    server: { host: true },
   };
 };
