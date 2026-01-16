@@ -16,6 +16,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02_mobileapp   # ✅ HIER liegt dein package.json + lockfile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,6 +28,7 @@ jobs:
         with:
           node-version: 18
           cache: npm
+          cache-dependency-path: 02_mobileapp/package-lock.json  # ✅ Cache richtig
 
       - name: Install dependencies
         run: npm ci
@@ -32,10 +36,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: www
+          path: 02_mobileapp/www  # ✅ Dein Vite build outDir
 
   deploy:
     runs-on: ubuntu-latest
