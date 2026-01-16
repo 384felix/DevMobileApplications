@@ -38,18 +38,18 @@ const HomePage = () => (
     </Block>
     <BlockTitle>Navigation</BlockTitle>
     <List strong inset dividersIos>
-      <ListItem link="/about/" title="About"/>
-      <ListItem link="/form/" title="Form"/>
+      <ListItem link="/about/" title="About" />
+      <ListItem link="/form/" title="Form" />
     </List>
 
     <BlockTitle>Modals</BlockTitle>
-    <Block className="grid grid-cols-2 grid-gap">
+    <Block className="grid grid-cols-1 small-grid-cols-2 grid-gap">
       <Button fill popupOpen="#my-popup">Popup</Button>
       <Button fill loginScreenOpen="#my-login-screen">Login Screen</Button>
     </Block>
 
     <BlockTitle>Panels</BlockTitle>
-    <Block className="grid grid-cols-2 grid-gap">
+    <Block className="grid grid-cols-1 small-grid-cols-2 grid-gap">
       <Button fill panelOpen="left">Left Panel</Button>
       <Button fill panelOpen="right">Right Panel</Button>
     </Block>
