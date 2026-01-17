@@ -3,7 +3,7 @@
   "type": [
     "web"
   ],
-  "name": "My second app",
+  "name": "Sudoku",
   "framework": "react",
   "template": "tabs",
   "bundler": "vite",

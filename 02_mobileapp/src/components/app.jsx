@@ -42,7 +42,7 @@ const MyApp = () => {
   // - Diese Farbe gilt sowohl in Light als auch Dark, solange du sie nicht per CSS überschreibst.
   // =========================
   const f7params = {
-    name: 'My second app',
+    name: 'Sudoku',
     theme: 'auto',
 
     colors: {
