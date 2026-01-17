@@ -18,6 +18,9 @@
     "last 5 Firefox versions"
   ],
   "dependencies": {
+    "@capacitor/cli": "^8.0.1",
+    "@capacitor/core": "^8.0.1",
+    "@capacitor/ios": "^8.0.1",
     "dom7": "^4.0.6",
     "framework7": "^9.0.2",
     "framework7-icons": "^5.0.5",

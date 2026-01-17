@@ -1,0 +1,6 @@
+{
+  "appId": "de.dhbw.sample",
+  "appName": "DHBW Sample",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
