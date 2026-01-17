@@ -23,11 +23,11 @@ const HomePage = () => (
       <NavLeft>
         <Link iconIos="f7:menu" iconMd="material:menu" panelOpen="left" />
       </NavLeft>
-      <NavTitle sliding>My second app</NavTitle>
+      <NavTitle sliding>Sudoku</NavTitle>
       <NavRight>
         <Link iconIos="f7:menu" iconMd="material:menu" panelOpen="right" />
       </NavRight>
-      <NavTitleLarge>My second app</NavTitleLarge>
+      <NavTitleLarge>Sudoku</NavTitleLarge>
     </Navbar>
 
     {/* Page content */}
