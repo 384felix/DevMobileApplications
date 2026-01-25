@@ -13,6 +13,11 @@ import {
 } from 'framework7-react';
 import SudokuGrid from '../components/SudokuGrid.jsx';
 
+// ✅ Firebase
+import { auth, db } from '../js/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 // =========================
 // Lösung (Basis)
 const SOLUTION_BASE = [
@@ -139,7 +144,7 @@ const HARD_PUZZLES = [
 
 // -------------------------
 const clone9 = (g) => g.map((row) => row.slice());
-const computeGiven = (puzzle) => puzzle.map((row) => row.map((v) => v !== 0));
+const computeGiven = (p) => p.map((row) => row.map((v) => v !== 0));
 
 function poolByDiff(diff) {
     if (diff === 'medium') return MEDIUM_PUZZLES;
@@ -151,6 +156,29 @@ function pickRandomPuzzleByDifficulty(diff) {
     const pool = poolByDiff(diff);
     const idx = Math.floor(Math.random() * pool.length);
     return pool[idx];
+}
+
+// ✅ Firestore-safe serialize/deserialize (keine nested arrays)
+function gridToString(g) {
+    // 81 Zeichen, jeweils 0-9
+    let out = '';
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) out += String(g[r][c] ?? 0);
+    return out;
+}
+
+function stringToGrid(s) {
+    if (typeof s !== 'string' || s.length !== 81) return null;
+    const g = [];
+    for (let r = 0; r < 9; r++) {
+        const row = [];
+        for (let c = 0; c < 9; c++) {
+            const ch = s[r * 9 + c];
+            const n = parseInt(ch, 10);
+            row.push(Number.isFinite(n) ? n : 0);
+        }
+        g.push(row);
+    }
+    return g;
 }
 
 // -------------------------
@@ -219,9 +247,16 @@ function isSolvedGrid(grid) {
 
 // =========================
 export default function SudokuPage() {
-    const [difficulty, setDifficulty] = useState('easy');
+    // ✅ Auth / Save
+    const [user, setUser] = useState(null);
+    const [loadingSave, setLoadingSave] = useState(false);
+    const [savingNow, setSavingNow] = useState(false);
 
-    // start puzzle = easy random
+    const hasLoadedRef = useRef(false);
+    const lastUidRef = useRef(null);
+
+    // -------------------------
+    const [difficulty, setDifficulty] = useState('easy');
     const [puzzle, setPuzzle] = useState(() => pickRandomPuzzleByDifficulty('easy'));
     const [grid, setGrid] = useState(() => clone9(puzzle));
 
@@ -231,7 +266,10 @@ export default function SudokuPage() {
     const [helpEnabled, setHelpEnabled] = useState(true);
     const [solved, setSolved] = useState(false);
 
-    const invalid = useMemo(() => computeInvalidMatrix(grid, given, helpEnabled), [grid, given, helpEnabled]);
+    const invalid = useMemo(
+        () => computeInvalidMatrix(grid, given, helpEnabled),
+        [grid, given, helpEnabled]
+    );
 
     const isComplete = useMemo(() => {
         for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (grid[r][c] === 0) return false;
@@ -245,7 +283,6 @@ export default function SudokuPage() {
 
     const setNumber = (n) => {
         if (solved) return;
-
         const { r, c } = selected;
         if (given[r][c]) return;
 
@@ -256,6 +293,154 @@ export default function SudokuPage() {
         });
     };
 
+    // ✅ Auth Listener
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
+        return () => unsub();
+    }, []);
+
+    // ✅ Doc Ref
+    const saveRef = useMemo(() => {
+        if (!user) return null;
+        return doc(db, 'sudokuSaves', user.uid);
+    }, [user]);
+
+    // ✅ Wenn User wechselt oder Logout: lokale Anzeige NICHT vom vorherigen User behalten
+    useEffect(() => {
+        const currentUid = user?.uid ?? null;
+
+        if (lastUidRef.current !== currentUid) {
+            lastUidRef.current = currentUid;
+            hasLoadedRef.current = false;
+
+            setDifficulty('easy');
+            const freshPuzzle = pickRandomPuzzleByDifficulty('easy');
+            setPuzzle(freshPuzzle);
+            setGrid(clone9(freshPuzzle));
+            setHelpEnabled(true);
+            setSolved(false);
+            setSelected({ r: 0, c: 0 });
+        }
+    }, [user]);
+
+    // ✅ LOAD: Save laden (falls existiert)
+    useEffect(() => {
+        if (!saveRef) {
+            hasLoadedRef.current = false;
+            return;
+        }
+
+        (async () => {
+            setLoadingSave(true);
+            try {
+                const snap = await getDoc(saveRef);
+
+                if (!snap.exists()) {
+                    hasLoadedRef.current = true;
+                    return;
+                }
+
+                const data = snap.data();
+
+                const loadedDifficulty = data.difficulty || 'easy';
+
+                // ✅ String -> Grid
+                const loadedPuzzle = stringToGrid(data.puzzleStr) || pickRandomPuzzleByDifficulty(loadedDifficulty);
+                const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
+
+                setDifficulty(loadedDifficulty);
+                setPuzzle(loadedPuzzle);
+                setGrid(loadedGrid);
+
+                setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
+                setSolved(!!data.solved);
+                setSelected(
+                    data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 }
+                );
+
+                hasLoadedRef.current = true;
+            } catch (e) {
+                console.error('Failed to load sudoku save', e);
+                f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Sudoku Load Error');
+                hasLoadedRef.current = true;
+            } finally {
+                setLoadingSave(false);
+            }
+        })();
+    }, [saveRef]);
+
+    // ✅ Manueller Save Button (Firestore-safe)
+    const manualSave = async () => {
+        if (!user) {
+            f7.dialog.alert('Bitte zuerst einloggen, um zu speichern.');
+            return;
+        }
+        if (!saveRef) return;
+
+        setSavingNow(true);
+        try {
+            await setDoc(
+                saveRef,
+                {
+                    uid: user.uid,
+                    updatedAt: serverTimestamp(),
+
+                    difficulty,
+                    // ✅ statt nested arrays:
+                    puzzleStr: gridToString(puzzle),
+                    gridStr: gridToString(grid),
+
+                    helpEnabled,
+                    solved,
+                    selected,
+                },
+                { merge: true }
+            );
+
+            f7.toast.create({ text: 'Gespeichert ✅', closeTimeout: 1500 }).open();
+        } catch (e) {
+            console.error('Manual save failed', e);
+            f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Speichern fehlgeschlagen');
+        } finally {
+            setSavingNow(false);
+        }
+    };
+
+    // (Optional) Auto-Save debounced – ebenfalls Firestore-safe
+    const saveTimer = useRef(null);
+    useEffect(() => {
+        if (!saveRef) return;
+        if (!hasLoadedRef.current) return;
+
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+
+        saveTimer.current = setTimeout(async () => {
+            try {
+                await setDoc(
+                    saveRef,
+                    {
+                        uid: user.uid,
+                        updatedAt: serverTimestamp(),
+                        difficulty,
+                        puzzleStr: gridToString(puzzle),
+                        gridStr: gridToString(grid),
+                        helpEnabled,
+                        solved,
+                        selected,
+                    },
+                    { merge: true }
+                );
+            } catch (e) {
+                console.error('Auto-save failed', e);
+            }
+        }, 600);
+
+        return () => {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+        };
+    }, [saveRef, user, difficulty, puzzle, grid, helpEnabled, solved, selected]);
+
+    // Keyboard
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!selected) return;
@@ -274,8 +459,7 @@ export default function SudokuPage() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selected, solved]);
 
-    // ✅ WICHTIG: Beim Wechsel der Difficulty sofort neues Sudoku laden,
-    // damit der User direkt sieht, dass umgeschaltet wurde.
+    // Aktionen
     const setDifficultyAndLoad = (diff) => {
         setDifficulty(diff);
         const nextPuzzle = pickRandomPuzzleByDifficulty(diff);
@@ -319,34 +503,31 @@ export default function SudokuPage() {
         <Page name="sudoku">
             <Navbar title="Sudoku" />
 
+            <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div>
+                    {user ? (
+                        <>
+                            Eingeloggt als: <b>{user.email}</b>
+                        </>
+                    ) : (
+                        <>
+                            <b>Nicht eingeloggt</b> – Stand wird nicht gespeichert.
+                        </>
+                    )}
+                </div>
+                <div style={{ opacity: 0.7 }}>
+                    {loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}
+                </div>
+            </Block>
+
             <BlockTitle>Schwierigkeit</BlockTitle>
             <Block>
-                {/* ✅ Sichtbarer aktiver Zustand: wir benutzen Button-Komponente statt Link */}
                 <Segmented raised>
-                    <Button
-                        small
-                        active={difficulty === 'easy'}
-                        onClick={() => setDifficultyAndLoad('easy')}
-                    >
-                        Easy
-                    </Button>
-                    <Button
-                        small
-                        active={difficulty === 'medium'}
-                        onClick={() => setDifficultyAndLoad('medium')}
-                    >
-                        Medium
-                    </Button>
-                    <Button
-                        small
-                        active={difficulty === 'hard'}
-                        onClick={() => setDifficultyAndLoad('hard')}
-                    >
-                        Hard
-                    </Button>
+                    <Button small active={difficulty === 'easy'} onClick={() => setDifficultyAndLoad('easy')}>Easy</Button>
+                    <Button small active={difficulty === 'medium'} onClick={() => setDifficultyAndLoad('medium')}>Medium</Button>
+                    <Button small active={difficulty === 'hard'} onClick={() => setDifficultyAndLoad('hard')}>Hard</Button>
                 </Segmented>
 
-                {/* ✅ Anzeige, damit du IMMER weißt, was gewählt ist */}
                 <div style={{ marginTop: 10, fontWeight: 700 }}>
                     Aktuell: {difficulty.toUpperCase()}
                 </div>
@@ -355,6 +536,11 @@ export default function SudokuPage() {
                     <Button fill onClick={loadNewPuzzle}>Neues Sudoku</Button>
                     <Button outline onClick={resetPuzzle}>Reset</Button>
                     <Button outline onClick={fillWithSolution}>Debug: Lösung einfügen</Button>
+
+                    {/* ✅ Speichern-Button */}
+                    <Button fill disabled={!user || savingNow || loadingSave} onClick={manualSave}>
+                        {savingNow ? 'Speichere…' : 'Speichern'}
+                    </Button>
 
                     {isComplete && !solved && (
                         <Button fill onClick={checkSolution}>
@@ -378,8 +564,8 @@ export default function SudokuPage() {
                     invalid={invalid}
                     selected={selected}
                     solved={solved}
-                    onSelect={handleSelect}
-                    focusKeyboard={focusKeyboard}
+                    onSelect={(r, c) => setSelected({ r, c })}
+                    focusKeyboard={() => inputRef.current?.focus({ preventScroll: true })}
                 />
 
                 <input
@@ -420,7 +606,7 @@ export default function SudokuPage() {
             </List>
 
             <BlockFooter>
-                Tipp: Tippe auf Easy/Medium/Hard — das Sudoku wechselt sofort. „Neues Sudoku“ lädt ein weiteres Puzzle aus der Stufe.
+                Jetzt speichert Firestore: <b>gridStr</b> und <b>puzzleStr</b> (81 Zeichen). In Firebase solltest du eine Collection <b>sudokuSaves</b> sehen.
             </BlockFooter>
         </Page>
     );
