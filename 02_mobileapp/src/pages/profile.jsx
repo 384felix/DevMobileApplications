@@ -11,7 +11,6 @@ import {
   f7,
 } from 'framework7-react';
 
-// 🔥 Firebase Auth + Firestore
 import { auth, db } from '../js/firebase';
 import {
   signInWithEmailAndPassword,
@@ -19,55 +18,43 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-// 🌐 Network (Capacitor)
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 
 const ProfilePage = () => {
-  // Mode: Login oder Register
   const [mode, setMode] = useState('login'); // 'login' | 'register'
 
-  // Login/Register Eingabefelder
+  // Login/Register
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  // Optional: Passwort wiederholen (nur UI-Sicherheit)
   const [password2, setPassword2] = useState('');
 
-  // Firebase-User
+  // User
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🌐 Online/Offline
+  // Online
   const [online, setOnline] = useState(true);
 
-  // 👤 Kundendaten-Form
-  const [customer, setCustomer] = useState({
-    company: '',
-    contactName: '',
-    customerEmail: '',
-    phone: '',
-    notes: '',
+  // Profil-Daten
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profile, setProfile] = useState({
+    displayName: '',
+    avatarUrl: '', // erstmal URL; Upload kommt als nächster Schritt
   });
 
-  const canSaveCustomer = useMemo(() => {
-    if (!user) return false;
-    if (!customer.company.trim()) return false;
-    if (!customer.contactName.trim()) return false;
-    return true;
-  }, [user, customer]);
-
-  // ✅ Firebase Auth Listener
+  // ---- Auth Listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser || null);
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
-  // ✅ Online/Offline Listener (Capacitor Network)
+  // ---- Online Listener
   useEffect(() => {
     let listener;
 
@@ -80,7 +67,6 @@ const ProfilePage = () => {
           setOnline(s.connected);
         });
       } catch (e) {
-        // Fallback (Web)
         const update = () => setOnline(navigator.onLine);
         update();
         window.addEventListener('online', update);
@@ -101,28 +87,64 @@ const ProfilePage = () => {
     };
   }, []);
 
-  // 🔐 LOGIN
+  // ---- Profil laden aus Firestore: users/{uid}
+  useEffect(() => {
+    if (!user) return;
+
+    const ref = doc(db, 'users', user.uid);
+
+    (async () => {
+      setProfileLoading(true);
+      try {
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          setProfile({
+            displayName: data.displayName || '',
+            avatarUrl: data.avatarUrl || '',
+          });
+        } else {
+          // initiales Profil anlegen (optional)
+          await setDoc(
+            ref,
+            {
+              email: user.email || '',
+              displayName: '',
+              avatarUrl: '',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setProfileLoading(false);
+      }
+    })();
+  }, [user]);
+
+  const canSaveProfile = useMemo(() => {
+    if (!user) return false;
+    if (!profile.displayName.trim()) return false;
+    return true;
+  }, [user, profile]);
+
+  // ---- Login/Register/Logout
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       f7.dialog.alert('Bitte E-Mail und Passwort eingeben.');
       return;
     }
-
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-
-      f7.toast
-        .create({
-          text: 'Login erfolgreich ✅',
-          closeTimeout: 1500,
-        })
-        .open();
+      f7.toast.create({ text: 'Login erfolgreich ✅', closeTimeout: 1500 }).open();
     } catch (err) {
       f7.dialog.alert(err.message, 'Login fehlgeschlagen');
     }
   };
 
-  // 🆕 REGISTER
   const handleRegister = async () => {
     if (!email.trim() || !password.trim()) {
       f7.dialog.alert('Bitte E-Mail und Passwort eingeben.');
@@ -136,17 +158,9 @@ const ProfilePage = () => {
       f7.dialog.alert('Passwörter stimmen nicht überein.');
       return;
     }
-
     try {
       await createUserWithEmailAndPassword(auth, email.trim(), password);
-
-      f7.toast
-        .create({
-          text: 'Registrierung erfolgreich ✅ (eingeloggt)',
-          closeTimeout: 1800,
-        })
-        .open();
-
+      f7.toast.create({ text: 'Registrierung erfolgreich ✅', closeTimeout: 1800 }).open();
       setMode('login');
       setPassword2('');
     } catch (err) {
@@ -154,64 +168,54 @@ const ProfilePage = () => {
     }
   };
 
-  // 🚪 LOGOUT
   const handleLogout = async () => {
     await signOut(auth);
     setEmail('');
     setPassword('');
     setPassword2('');
     setMode('login');
-    setCustomer({
-      company: '',
-      contactName: '',
-      customerEmail: '',
-      phone: '',
-      notes: '',
-    });
+    setProfile({ displayName: '', avatarUrl: '' });
   };
 
-  // 💾 Kundendaten speichern
-  const saveCustomer = async () => {
-    if (!user) {
-      f7.dialog.alert('Bitte zuerst einloggen.');
-      return;
-    }
-    if (!canSaveCustomer) {
-      f7.dialog.alert('Bitte mindestens Firma und Kontaktperson ausfüllen.');
+  // ---- Profil speichern
+  const saveProfile = async () => {
+    if (!user) return;
+    if (!canSaveProfile) {
+      f7.dialog.alert('Bitte mindestens einen Anzeigenamen eintragen.');
       return;
     }
 
+    setSavingProfile(true);
     try {
-      await addDoc(collection(db, 'customers'), {
-        company: customer.company.trim(),
-        contactName: customer.contactName.trim(),
-        email: customer.customerEmail.trim(),
-        phone: customer.phone.trim(),
-        notes: customer.notes.trim(),
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          email: user.email || '',
+          displayName: profile.displayName.trim(),
+          avatarUrl: profile.avatarUrl.trim(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
-        ownerUid: user.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      f7.toast
-        .create({ text: 'Kundendaten gespeichert ✅', closeTimeout: 1500 })
-        .open();
-
-      setCustomer({
-        company: '',
-        contactName: '',
-        customerEmail: '',
-        phone: '',
-        notes: '',
-      });
-    } catch (err) {
-      console.error(err);
-      f7.dialog.alert(err.message, 'Speichern fehlgeschlagen');
+      f7.toast.create({ text: 'Profil gespeichert ✅', closeTimeout: 1500 }).open();
+    } catch (e) {
+      console.error(e);
+      f7.dialog.alert(e.message || String(e), 'Speichern fehlgeschlagen');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
-  // ⏳ Während Firebase prüft
+  const initials = useMemo(() => {
+    const name = profile.displayName.trim();
+    if (!name) return '🙂';
+    const parts = name.split(' ').filter(Boolean);
+    const a = parts[0]?.[0] || '';
+    const b = parts[1]?.[0] || '';
+    return (a + b).toUpperCase() || '🙂';
+  }, [profile.displayName]);
+
   if (loading) {
     return (
       <Page name="profile">
@@ -227,24 +231,13 @@ const ProfilePage = () => {
 
       {!user ? (
         <>
-          <BlockTitle>
-            {mode === 'login' ? 'Einloggen' : 'Konto erstellen'}
-          </BlockTitle>
+          <BlockTitle>{mode === 'login' ? 'Einloggen' : 'Konto erstellen'}</BlockTitle>
 
-          {/* Umschalter */}
           <Block strong inset style={{ display: 'flex', gap: 10 }}>
-            <Button
-              fill={mode === 'login'}
-              outline={mode !== 'login'}
-              onClick={() => setMode('login')}
-            >
+            <Button fill={mode === 'login'} outline={mode !== 'login'} onClick={() => setMode('login')}>
               Login
             </Button>
-            <Button
-              fill={mode === 'register'}
-              outline={mode !== 'register'}
-              onClick={() => setMode('register')}
-            >
+            <Button fill={mode === 'register'} outline={mode !== 'register'} onClick={() => setMode('register')}>
               Registrieren
             </Button>
           </Block>
@@ -258,7 +251,6 @@ const ProfilePage = () => {
               onInput={(e) => setEmail(e.target.value)}
               clearButton
             />
-
             <ListInput
               label="Passwort"
               type="password"
@@ -267,7 +259,6 @@ const ProfilePage = () => {
               onInput={(e) => setPassword(e.target.value)}
               clearButton
             />
-
             {mode === 'register' && (
               <ListInput
                 label="Passwort wiederholen"
@@ -282,19 +273,9 @@ const ProfilePage = () => {
 
           <Block>
             {mode === 'login' ? (
-              <>
-                <ListButton title="Einloggen" onClick={handleLogin} />
-                <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-                  Konto-Zugriff via Firebase Auth
-                </div>
-              </>
+              <ListButton title="Einloggen" onClick={handleLogin} />
             ) : (
-              <>
-                <ListButton title="Registrieren" onClick={handleRegister} />
-                <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-                  Mindestlänge Passwort: 6 Zeichen
-                </div>
-              </>
+              <ListButton title="Registrieren" onClick={handleRegister} />
             )}
           </Block>
         </>
@@ -302,34 +283,84 @@ const ProfilePage = () => {
         <>
           <BlockTitle>Dein Konto</BlockTitle>
 
-          {/* 🌐 Statusanzeige */}
-          <Block
-            strong
-            inset
-            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-          >
+          {/* Online Status */}
+          <Block strong inset style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
               style={{
                 width: 10,
                 height: 10,
                 borderRadius: 999,
-                background: online
-                  ? 'var(--f7-color-green)'
-                  : 'var(--f7-color-red)',
+                background: online ? 'var(--f7-color-green)' : 'var(--f7-color-red)',
                 display: 'inline-block',
               }}
             />
             <span>{online ? 'Online' : 'Offline'}</span>
           </Block>
 
-          <Block strong inset>
-            <p>
-              Eingeloggt als:<br />
-              <b>{user.email}</b>
-            </p>
+          {/* Header Card */}
+          <Block strong inset style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {/* Avatar */}
+            {profile.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt="Avatar"
+                style={{ width: 56, height: 56, borderRadius: 999, objectFit: 'cover' }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 18,
+                  background: 'var(--f7-theme-color)',
+                  color: '#fff',
+                }}
+              >
+                {initials}
+              </div>
+            )}
 
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>
+                {profile.displayName?.trim() ? profile.displayName : 'Noch kein Anzeigename'}
+              </div>
+              <div style={{ opacity: 0.7, fontSize: 13 }}>{user.email}</div>
+              {profileLoading && <div style={{ marginTop: 6, opacity: 0.6 }}>Profil wird geladen…</div>}
+            </div>
+          </Block>
+
+          <BlockTitle>Profil bearbeiten</BlockTitle>
+          <List strong inset dividersIos>
+            <ListInput
+              label="Anzeigename *"
+              type="text"
+              placeholder="z.B. Felix"
+              value={profile.displayName}
+              onInput={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
+              clearButton
+            />
+            <ListInput
+              label="Avatar URL (optional)"
+              type="url"
+              placeholder="https://..."
+              value={profile.avatarUrl}
+              onInput={(e) => setProfile((p) => ({ ...p, avatarUrl: e.target.value }))}
+              clearButton
+            />
+          </List>
+
+          <Block>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button fill onClick={() => f7.views.main?.router.navigate('/sudoku/')}>
+              <Button fill onClick={saveProfile} disabled={!canSaveProfile || savingProfile}>
+                {savingProfile ? 'Speichere…' : 'Profil speichern'}
+              </Button>
+
+              <Button outline onClick={() => f7.views.main?.router.navigate('/sudoku/')}>
                 Zum Sudoku
               </Button>
 
@@ -337,69 +368,17 @@ const ProfilePage = () => {
                 Logout
               </Button>
             </div>
+
+            <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
+              Nächster Schritt: Avatar Upload über Firebase Storage (statt URL). Sag Bescheid, dann bauen wir das ein.
+            </div>
           </Block>
 
-          <BlockTitle>Kundendaten speichern</BlockTitle>
-
-          <List strong inset dividersIos>
-            <ListInput
-              label="Firma *"
-              type="text"
-              placeholder="Muster GmbH"
-              value={customer.company}
-              onInput={(e) =>
-                setCustomer((p) => ({ ...p, company: e.target.value }))
-              }
-              clearButton
-            />
-            <ListInput
-              label="Kontaktperson *"
-              type="text"
-              placeholder="Max Mustermann"
-              value={customer.contactName}
-              onInput={(e) =>
-                setCustomer((p) => ({ ...p, contactName: e.target.value }))
-              }
-              clearButton
-            />
-            <ListInput
-              label="E-Mail"
-              type="email"
-              placeholder="kontakt@muster.de"
-              value={customer.customerEmail}
-              onInput={(e) =>
-                setCustomer((p) => ({ ...p, customerEmail: e.target.value }))
-              }
-              clearButton
-            />
-            <ListInput
-              label="Telefon"
-              type="tel"
-              placeholder="+49 ..."
-              value={customer.phone}
-              onInput={(e) =>
-                setCustomer((p) => ({ ...p, phone: e.target.value }))
-              }
-              clearButton
-            />
-            <ListInput
-              label="Notizen"
-              type="textarea"
-              placeholder="Zusätzliche Infos…"
-              value={customer.notes}
-              onInput={(e) =>
-                setCustomer((p) => ({ ...p, notes: e.target.value }))
-              }
-              resizable
-            />
-          </List>
-
-          <Block>
-            <ListButton
-              title="Kundendaten speichern"
-              onClick={saveCustomer}
-              disabled={!canSaveCustomer}
-            />
+          <BlockTitle>Stats (später)</BlockTitle>
+          <Block strong inset style={{ opacity: 0.8 }}>
+            - Gelöste Sudokus<br />
+            - Bestzeiten pro Difficulty<br />
+            - Streak / tägliche Challenge
           </Block>
         </>
       )}
