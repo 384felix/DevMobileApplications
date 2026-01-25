@@ -19,7 +19,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 
 const ProfilePage = () => {
@@ -37,17 +37,17 @@ const ProfilePage = () => {
   // Online
   const [online, setOnline] = useState(true);
 
-  // Profil-Daten
+  // Profil-Daten (USERNAME ONLY)
   const [profileLoading, setProfileLoading] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profile, setProfile] = useState({
-    displayName: '',
-    avatarUrl: '', // erstmal URL; Upload kommt als nächster Schritt
+    username: '',
+    avatarUrl: '',
   });
 
   // ---- Auth Listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser || null);
       setLoading(false);
     });
@@ -97,25 +97,29 @@ const ProfilePage = () => {
       setProfileLoading(true);
       try {
         const snap = await getDoc(ref);
+
         if (snap.exists()) {
           const data = snap.data();
           setProfile({
-            displayName: data.displayName || '',
+            username: data.username || '',
             avatarUrl: data.avatarUrl || '',
           });
         } else {
-          // initiales Profil anlegen (optional)
+          // initiales Profil anlegen
           await setDoc(
             ref,
             {
               email: user.email || '',
-              displayName: '',
+              username: '',
+              usernameLower: '',
               avatarUrl: '',
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             },
             { merge: true }
           );
+
+          setProfile({ username: '', avatarUrl: '' });
         }
       } catch (e) {
         console.error(e);
@@ -127,9 +131,9 @@ const ProfilePage = () => {
 
   const canSaveProfile = useMemo(() => {
     if (!user) return false;
-    if (!profile.displayName.trim()) return false;
+    if (!profile.username.trim()) return false;
     return true;
-  }, [user, profile]);
+  }, [user, profile.username]);
 
   // ---- Login/Register/Logout
   const handleLogin = async () => {
@@ -174,47 +178,96 @@ const ProfilePage = () => {
     setPassword('');
     setPassword2('');
     setMode('login');
-    setProfile({ displayName: '', avatarUrl: '' });
+    setProfile({ username: '', avatarUrl: '' });
   };
 
-  // ---- Profil speichern
+  // ---- Profil speichern (Username eindeutig via usernames/{usernameLower})
   const saveProfile = async () => {
     if (!user) return;
-    if (!canSaveProfile) {
-      f7.dialog.alert('Bitte mindestens einen Anzeigenamen eintragen.');
+
+    const usernameRaw = (profile.username || '').trim();
+    if (!usernameRaw) {
+      f7.dialog.alert('Bitte einen Username eintragen.');
+      return;
+    }
+
+    const usernameLower = usernameRaw.toLowerCase();
+
+    // erlaubt: a-z 0-9 _ .  |  Länge: 3-20
+    if (!/^[a-z0-9._]{3,20}$/.test(usernameLower)) {
+      f7.dialog.alert(
+        'Username muss 3–20 Zeichen haben und darf nur a-z, 0-9, . oder _ enthalten.'
+      );
       return;
     }
 
     setSavingProfile(true);
+
     try {
-      await setDoc(
-        doc(db, 'users', user.uid),
-        {
-          email: user.email || '',
-          displayName: profile.displayName.trim(),
-          avatarUrl: profile.avatarUrl.trim(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const userRef = doc(db, 'users', user.uid);
+      const newUnameRef = doc(db, 'usernames', usernameLower);
+
+      await runTransaction(db, async (tx) => {
+        // 1) User-Dokument lesen (um alten Username zu kennen)
+        const userSnap = await tx.get(userRef);
+        const current = userSnap.exists() ? userSnap.data() : {};
+        const oldUsernameLower = current.usernameLower || null;
+
+        // 2) Wenn Username sich geändert hat: prüfen/reservieren
+        if (!oldUsernameLower || oldUsernameLower !== usernameLower) {
+          const unameSnap = await tx.get(newUnameRef);
+
+          // Wenn existiert und gehört nicht mir → Name vergeben
+          if (unameSnap.exists() && unameSnap.data()?.uid !== user.uid) {
+            throw new Error('USERNAME_TAKEN');
+          }
+
+          // neuen Namen reservieren (oder bestätigen, falls er schon mir gehört)
+          tx.set(
+            newUnameRef,
+            { uid: user.uid, createdAt: serverTimestamp() },
+            { merge: true }
+          );
+
+          // alten Namen freigeben (wenn vorhanden)
+          if (oldUsernameLower) {
+            const oldUnameRef = doc(db, 'usernames', oldUsernameLower);
+            const oldSnap = await tx.get(oldUnameRef);
+            if (oldSnap.exists() && oldSnap.data()?.uid === user.uid) {
+              tx.delete(oldUnameRef);
+            }
+          }
+        }
+
+        // 3) users/{uid} updaten
+        tx.set(
+          userRef,
+          {
+            username: usernameRaw,
+            usernameLower,
+            email: user.email || '',
+            avatarUrl: current.avatarUrl || profile.avatarUrl || '',
+            updatedAt: serverTimestamp(),
+            createdAt: current.createdAt || serverTimestamp(),
+          },
+          { merge: true }
+        );
+      });
 
       f7.toast.create({ text: 'Profil gespeichert ✅', closeTimeout: 1500 }).open();
     } catch (e) {
       console.error(e);
+
+      if ((e?.message || '').includes('USERNAME_TAKEN')) {
+        f7.dialog.alert('Dieser Username ist leider schon vergeben. Bitte wähle einen anderen.');
+        return;
+      }
+
       f7.dialog.alert(e.message || String(e), 'Speichern fehlgeschlagen');
     } finally {
       setSavingProfile(false);
     }
   };
-
-  const initials = useMemo(() => {
-    const name = profile.displayName.trim();
-    if (!name) return '🙂';
-    const parts = name.split(' ').filter(Boolean);
-    const a = parts[0]?.[0] || '';
-    const b = parts[1]?.[0] || '';
-    return (a + b).toUpperCase() || '🙂';
-  }, [profile.displayName]);
 
   if (loading) {
     return (
@@ -299,7 +352,7 @@ const ProfilePage = () => {
 
           {/* Header Card */}
           <Block strong inset style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            {/* Avatar */}
+            {/* Avatar (optional URL) */}
             {profile.avatarUrl ? (
               <img
                 src={profile.avatarUrl}
@@ -321,13 +374,13 @@ const ProfilePage = () => {
                   color: '#fff',
                 }}
               >
-                {initials}
+                @
               </div>
             )}
 
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18 }}>
-                {profile.displayName?.trim() ? profile.displayName : 'Noch kein Anzeigename'}
+                {profile.username?.trim() ? `@${profile.username}` : 'Noch kein Username'}
               </div>
               <div style={{ opacity: 0.7, fontSize: 13 }}>{user.email}</div>
               {profileLoading && <div style={{ marginTop: 6, opacity: 0.6 }}>Profil wird geladen…</div>}
@@ -337,13 +390,14 @@ const ProfilePage = () => {
           <BlockTitle>Profil bearbeiten</BlockTitle>
           <List strong inset dividersIos>
             <ListInput
-              label="Anzeigename *"
+              label="Username *"
               type="text"
-              placeholder="z.B. Felix"
-              value={profile.displayName}
-              onInput={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
+              placeholder="z.B. flizzmaster"
+              value={profile.username}
+              onInput={(e) => setProfile((p) => ({ ...p, username: e.target.value }))}
               clearButton
             />
+
             <ListInput
               label="Avatar URL (optional)"
               type="url"
@@ -370,15 +424,8 @@ const ProfilePage = () => {
             </div>
 
             <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-              Nächster Schritt: Avatar Upload über Firebase Storage (statt URL). Sag Bescheid, dann bauen wir das ein.
+              Username ist eindeutig (Collection <b>usernames</b>). Groß/Klein ist egal: wir vergleichen immer <b>lowercase</b>.
             </div>
-          </Block>
-
-          <BlockTitle>Stats (später)</BlockTitle>
-          <Block strong inset style={{ opacity: 0.8 }}>
-            - Gelöste Sudokus<br />
-            - Bestzeiten pro Difficulty<br />
-            - Streak / tägliche Challenge
           </Block>
         </>
       )}
