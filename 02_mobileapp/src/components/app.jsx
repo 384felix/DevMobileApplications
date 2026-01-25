@@ -11,7 +11,6 @@ import {
   Page,
   Navbar,
   Toolbar,
-  ToolbarPane,
   NavRight,
   Link,
   Block,
@@ -36,18 +35,11 @@ const MyApp = () => {
     return saved ? JSON.parse(saved) : false;
   });
 
-  // =========================
-  // ✅ HIER werden die App-Farben gesetzt (LIGHT / Basis-Theme)
-  // - Framework7 nutzt "primary" für Buttons, aktive Tabs, Links, Toggles etc.
-  // - Diese Farbe gilt sowohl in Light als auch Dark, solange du sie nicht per CSS überschreibst.
-  // =========================
   const f7params = {
     name: 'Sudoku',
     theme: 'auto',
 
     colors: {
-      // ✅ statt rosarot: dunkelblau (modern, gut lesbar)
-      // Alternative grau: '#4b5563'
       primary: '#1e3a8a', // dunkelblau
     },
 
@@ -58,11 +50,6 @@ const MyApp = () => {
   // ✅ Framework7 initial ready + initial DarkMode anwenden
   useEffect(() => {
     f7ready(() => {
-      // =========================
-      // ✅ HIER wird Dark Mode EIN/AUS geschaltet (global)
-      // - Wenn true => Framework7 setzt Dark-Styles und ".dark" Klasse
-      // - Wenn false => Light Mode
-      // =========================
       f7.setDarkMode(darkMode);
     });
   }, []);
@@ -100,7 +87,7 @@ const MyApp = () => {
             <Navbar title="Right Panel" />
             <Block>Right panel content goes here</Block>
 
-            {/* ✅ Dark Mode Toggle (später gerne in Settings-Tab verschieben) */}
+            {/* ✅ Dark Mode Toggle (optional) */}
             <List strong inset>
               <ListButton
                 title={darkMode ? 'Dark Mode: AN' : 'Dark Mode: AUS'}
@@ -111,24 +98,36 @@ const MyApp = () => {
         </View>
       </Panel>
 
-      {/* Views/Tabs */}
+      {/* ✅ Views/Tabs */}
       <Views tabs className="safe-areas">
         <Toolbar tabbar icons bottom>
-          <ToolbarPane>
-            <Link tabLink="#view-home" tabLinkActive iconIos="f7:house_fill" iconMd="material:home" text="Home" />
-            <Link tabLink="#view-login" iconIos="f7:person_crop_circle" iconMd="material:login" text="Login" />
-            <Link tabLink="#view-settings" iconIos="f7:gear" iconMd="material:settings" text="Settings" />
-            <Link tabLink="#view-sudoku" iconIos="f7:gamecontroller" iconMd="material:games" text="Sudoku" />
-          </ToolbarPane>
+          <Link
+            tabLink="#view-sudoku"
+            tabLinkActive
+            iconIos="f7:gamecontroller"
+            iconMd="material:games"
+            text="Sudoku"
+          />
+          <Link
+            tabLink="#view-friends"
+            iconIos="f7:person_2"
+            iconMd="material:people"
+            text="Freunde"
+          />
+          <Link
+            tabLink="#view-leaderboard"
+            iconIos="f7:rosette"
+            iconMd="material:emoji_events"
+            text="Rangliste"
+          />
         </Toolbar>
 
-        <View id="view-home" main tab tabActive url="/" />
-        <View id="view-login" name="login" tab url="/login/" />
-        <View id="view-settings" name="settings" tab url="/settings/" />
-        <View id="view-sudoku" name="sudoku" tab url="/sudoku/" />
+        <View id="view-sudoku" main tab tabActive url="/sudoku/" />
+        <View id="view-friends" tab url="/friends/" />
+        <View id="view-leaderboard" tab url="/leaderboard/" />
       </Views>
 
-      {/* Popup */}
+      {/* Popup (optional) */}
       <Popup id="my-popup">
         <View>
           <Page>
@@ -144,7 +143,7 @@ const MyApp = () => {
         </View>
       </Popup>
 
-      {/* LoginScreen */}
+      {/* LoginScreen (optional, kannst du später entfernen) */}
       <LoginScreen id="my-login-screen">
         <View>
           <Page loginScreen>

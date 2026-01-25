@@ -1,1 +1,36 @@
-/* Your app custom styles here */
+/* ===============================
+   FORCE BIG PROFILE BUTTON
+   =============================== */
+
+/* Link selbst */
+.navbar .right a.profile-btn {
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    min-height: 52px !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    position: relative !important;
+}
+
+/* Framework7 ICON FONT explizit überschreiben */
+.navbar .right a.profile-btn i.f7-icons {
+    font-size: 36px !important;
+    /* <-- HIER wird er sichtbar groß */
+    line-height: 1 !important;
+}
+
+/* Status-Punkt */
+.navbar .right a.profile-btn .profile-btn__dot {
+    position: absolute !important;
+    top: 6px !important;
+    right: 6px !important;
+    width: 9px !important;
+    height: 9px !important;
+    border-radius: 999px !important;
+    background: var(--f7-color-green) !important;
+}

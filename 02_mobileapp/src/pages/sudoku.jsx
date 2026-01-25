@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Page,
     Navbar,
@@ -12,6 +12,10 @@ import {
     f7,
 } from 'framework7-react';
 import SudokuGrid from '../components/SudokuGrid.jsx';
+
+import { NavRight } from 'framework7-react';
+import ProfileButton from '../components/ProfileButton.jsx';
+
 
 // ✅ Firebase
 import { auth, db } from '../js/firebase';
@@ -501,6 +505,11 @@ export default function SudokuPage() {
 
     return (
         <Page name="sudoku">
+
+            <NavRight>
+                <ProfileButton />
+            </NavRight>
+
             <Navbar title="Sudoku" />
 
             <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>

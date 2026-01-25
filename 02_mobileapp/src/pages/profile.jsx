@@ -24,7 +24,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 // 🌐 Network (Capacitor)
 import { Network } from '@capacitor/network';
 
-const LoginPage = () => {
+const ProfilePage = () => {
   // Mode: Login oder Register
   const [mode, setMode] = useState('login'); // 'login' | 'register'
 
@@ -122,7 +122,7 @@ const LoginPage = () => {
     }
   };
 
-  // 🆕 REGISTER (und danach automatisch eingeloggt)
+  // 🆕 REGISTER
   const handleRegister = async () => {
     if (!email.trim() || !password.trim()) {
       f7.dialog.alert('Bitte E-Mail und Passwort eingeben.');
@@ -147,7 +147,6 @@ const LoginPage = () => {
         })
         .open();
 
-      // optional: UI auf "login" zurücksetzen, Felder leeren
       setMode('login');
       setPassword2('');
     } catch (err) {
@@ -215,21 +214,21 @@ const LoginPage = () => {
   // ⏳ Während Firebase prüft
   if (loading) {
     return (
-      <Page>
-        <Navbar title="Login" />
+      <Page name="profile">
+        <Navbar title="Profil" />
         <Block strong inset>Lade...</Block>
       </Page>
     );
   }
 
   return (
-    <Page name="login">
-      <Navbar title="Login" />
+    <Page name="profile">
+      <Navbar title="Profil" backLink="Zurück" />
 
       {!user ? (
         <>
           <BlockTitle>
-            {mode === 'login' ? 'Einloggen' : 'Registrieren'}
+            {mode === 'login' ? 'Einloggen' : 'Konto erstellen'}
           </BlockTitle>
 
           {/* Umschalter */}
@@ -286,7 +285,7 @@ const LoginPage = () => {
               <>
                 <ListButton title="Einloggen" onClick={handleLogin} />
                 <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-                  Firebase Auth (E-Mail / Passwort)
+                  Konto-Zugriff via Firebase Auth
                 </div>
               </>
             ) : (
@@ -301,7 +300,7 @@ const LoginPage = () => {
         </>
       ) : (
         <>
-          <BlockTitle>Du bist eingeloggt</BlockTitle>
+          <BlockTitle>Dein Konto</BlockTitle>
 
           {/* 🌐 Statusanzeige */}
           <Block
@@ -329,9 +328,15 @@ const LoginPage = () => {
               <b>{user.email}</b>
             </p>
 
-            <Button fill color="red" onClick={handleLogout}>
-              Logout
-            </Button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button fill onClick={() => f7.views.main?.router.navigate('/sudoku/')}>
+                Zum Sudoku
+              </Button>
+
+              <Button fill color="red" onClick={handleLogout}>
+                Logout
+              </Button>
+            </div>
           </Block>
 
           <BlockTitle>Kundendaten speichern</BlockTitle>
@@ -402,4 +407,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default ProfilePage;
