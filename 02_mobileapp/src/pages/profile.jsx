@@ -87,6 +87,42 @@ const ProfilePage = () => {
     };
   }, []);
 
+  // ---- Online-Status in Firestore schreiben (users/{uid})
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, 'users', user.uid);
+    setDoc(
+      ref,
+      { online, lastSeen: serverTimestamp() },
+      { merge: true }
+    ).catch((e) => console.error('[profile] online status update error', e));
+  }, [user, online]);
+
+  // ---- Bei App-Hintergrund/Close als offline markieren
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, 'users', user.uid);
+
+    const setOffline = () => {
+      setDoc(ref, { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
+        console.error('[profile] offline status update error', e)
+      );
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) setOffline();
+    };
+
+    window.addEventListener('beforeunload', setOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', setOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      setOffline();
+    };
+  }, [user]);
+
   // ---- Profil laden aus Firestore: users/{uid}
   useEffect(() => {
     if (!user) return;
@@ -105,20 +141,6 @@ const ProfilePage = () => {
             avatarUrl: data.avatarUrl || '',
           });
         } else {
-          // initiales Profil anlegen
-          await setDoc(
-            ref,
-            {
-              email: user.email || '',
-              username: '',
-              usernameLower: '',
-              avatarUrl: '',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-
           setProfile({ username: '', avatarUrl: '' });
         }
       } catch (e) {
@@ -163,7 +185,19 @@ const ProfilePage = () => {
       return;
     }
     try {
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await setDoc(
+        doc(db, 'users', cred.user.uid),
+        {
+          email: cred.user.email || '',
+          username: '',
+          usernameLower: '',
+          avatarUrl: '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
       f7.toast.create({ text: 'Registrierung erfolgreich ✅', closeTimeout: 1800 }).open();
       setMode('login');
       setPassword2('');

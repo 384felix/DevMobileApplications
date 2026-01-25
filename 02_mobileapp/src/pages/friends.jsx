@@ -1,3 +1,4 @@
+// friends.jsx
 import React, { useEffect, useState } from 'react';
 import {
     Page,
@@ -20,6 +21,7 @@ import {
     addDoc,
     collection,
     doc,
+    deleteDoc,
     getDoc,
     getDocs,
     limit,
@@ -92,7 +94,7 @@ export default function FriendsPage({ f7router }) {
 
                 setSuggestions(rows);
             } catch (e) {
-                console.error(e);
+                console.error('[suggestions] load error:', e);
             } finally {
                 setLoadingSuggestions(false);
             }
@@ -101,10 +103,12 @@ export default function FriendsPage({ f7router }) {
 
     // -------------------------
     // Incoming / Outgoing Requests live
+    // (pending-only + Error-Handler + Debug-Logs)
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
 
+        // Incoming: nur pending
         const qIn = query(
             collection(db, 'friendRequests'),
             where('toUid', '==', myUid),
@@ -112,6 +116,7 @@ export default function FriendsPage({ f7router }) {
             orderBy('createdAt', 'desc')
         );
 
+        // Outgoing: nur pending
         const qOut = query(
             collection(db, 'friendRequests'),
             where('fromUid', '==', myUid),
@@ -119,15 +124,29 @@ export default function FriendsPage({ f7router }) {
             orderBy('createdAt', 'desc')
         );
 
-        const unsubIn = onSnapshot(qIn, (snap) => {
-            const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setIncoming(rows);
-        });
+        const unsubIn = onSnapshot(
+            qIn,
+            (snap) => {
+                const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                console.log('[friendRequests] INCOMING rows:', rows);
+                setIncoming(rows);
+            },
+            (err) => {
+                console.error('[friendRequests] INCOMING listener error:', err);
+            }
+        );
 
-        const unsubOut = onSnapshot(qOut, (snap) => {
-            const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setOutgoing(rows);
-        });
+        const unsubOut = onSnapshot(
+            qOut,
+            (snap) => {
+                const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                console.log('[friendRequests] OUTGOING rows:', rows);
+                setOutgoing(rows);
+            },
+            (err) => {
+                console.error('[friendRequests] OUTGOING listener error:', err);
+            }
+        );
 
         return () => {
             unsubIn();
@@ -147,16 +166,22 @@ export default function FriendsPage({ f7router }) {
             orderBy('createdAt', 'desc')
         );
 
-        const unsub = onSnapshot(qFriends, (snap) => {
-            const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setFriendsDocs(rows);
-        });
+        const unsub = onSnapshot(
+            qFriends,
+            (snap) => {
+                const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                setFriendsDocs(rows);
+            },
+            (err) => {
+                console.error('[friends] listener error:', err);
+            }
+        );
 
         return () => unsub();
     }, [myUid]);
 
     // -------------------------
-    // Friend profiles nachladen (für Anzeige)
+    // Friend/Request profiles nachladen (für Anzeige)
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -166,6 +191,12 @@ export default function FriendsPage({ f7router }) {
             (f.uids || []).forEach((uid) => {
                 if (uid && uid !== myUid) otherUids.add(uid);
             });
+        });
+        incoming.forEach((r) => {
+            if (r.fromUid && r.fromUid !== myUid) otherUids.add(r.fromUid);
+        });
+        outgoing.forEach((r) => {
+            if (r.toUid && r.toUid !== myUid) otherUids.add(r.toUid);
         });
 
         const missing = [...otherUids].filter((uid) => !friendsProfiles[uid]);
@@ -184,19 +215,21 @@ export default function FriendsPage({ f7router }) {
                             usernameLower: data.usernameLower || '',
                             avatarUrl: data.avatarUrl || '',
                             email: data.email || '',
+                            online: !!data.online,
+                            lastSeen: data.lastSeen || null,
                         };
                     } else {
-                        updates[uid] = { uid, username: '', avatarUrl: '' };
+                        updates[uid] = { uid, username: '', avatarUrl: '', online: false, lastSeen: null };
                     }
                 }
                 setFriendsProfiles((p) => ({ ...p, ...updates }));
             } catch (e) {
-                console.error(e);
+                console.error('[profiles] load error:', e);
             }
         })();
         // absichtlich KEIN friendsProfiles im deps-array -> sonst loop
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [friendsDocs, myUid]);
+    }, [friendsDocs, incoming, outgoing, myUid]);
 
     // -------------------------
     // Suche: nur usernameLower (exakt)
@@ -239,7 +272,7 @@ export default function FriendsPage({ f7router }) {
                 f7.toast.create({ text: 'Kein User gefunden', closeTimeout: 1200 }).open();
             }
         } catch (e) {
-            console.error(e);
+            console.error('[search] error:', e);
             f7.dialog.alert(e.message || String(e), 'Suche fehlgeschlagen');
         } finally {
             setSearching(false);
@@ -248,6 +281,9 @@ export default function FriendsPage({ f7router }) {
 
     // -------------------------
     // Request senden
+    // Fix: createdAt/updatedAt sofort mit Client-Zeit setzen,
+    // damit orderBy(createdAt) das Doc DIREKT im Snapshot sieht.
+    // Zusätzlich Server-Timestamps in *Server Feldern* speichern.
     // -------------------------
     const sendRequest = async (toUid) => {
         if (!myUid) return;
@@ -272,17 +308,26 @@ export default function FriendsPage({ f7router }) {
                 return;
             }
 
-            await addDoc(collection(db, 'friendRequests'), {
+            const now = new Date();
+
+            const docRef = await addDoc(collection(db, 'friendRequests'), {
                 fromUid: myUid,
                 toUid,
                 status: 'pending',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+
+                // ✅ sofort vorhanden -> Snapshot-Query (orderBy createdAt) nimmt es direkt mit
+                createdAt: now,
+                updatedAt: now,
+
+                // optional: echte Serverzeit zusätzlich (falls du später server-time brauchst)
+                createdAtServer: serverTimestamp(),
+                updatedAtServer: serverTimestamp(),
             });
 
+            console.log('[sendRequest] created', { id: docRef.id, fromUid: myUid, toUid });
             f7.toast.create({ text: 'Anfrage gesendet ✅', closeTimeout: 1400 }).open();
         } catch (e) {
-            console.error(e);
+            console.error('[sendRequest] error:', e);
             f7.dialog.alert(e.message || String(e), 'Anfrage fehlgeschlagen');
         }
     };
@@ -296,8 +341,12 @@ export default function FriendsPage({ f7router }) {
         try {
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'accepted',
-                updatedAt: serverTimestamp(),
+                updatedAt: new Date(),
+                updatedAtServer: serverTimestamp(),
             });
+            console.log('[acceptRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
+            // incoming wird eh durch Snapshot aktualisiert – der Filter ist nur UX sofort
+            setIncoming((prev) => prev.filter((r) => r.id !== req.id));
 
             // friend doc deterministisch: friends/{friendId}
             const friendId = makeFriendId(req.fromUid, req.toUid);
@@ -313,7 +362,7 @@ export default function FriendsPage({ f7router }) {
 
             f7.toast.create({ text: 'Freund hinzugefügt ✅', closeTimeout: 1400 }).open();
         } catch (e) {
-            console.error(e);
+            console.error('[acceptRequest] error:', e);
             f7.dialog.alert(e.message || String(e), 'Annehmen fehlgeschlagen');
         }
     };
@@ -322,11 +371,14 @@ export default function FriendsPage({ f7router }) {
         try {
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'rejected',
-                updatedAt: serverTimestamp(),
+                updatedAt: new Date(),
+                updatedAtServer: serverTimestamp(),
             });
+            console.log('[rejectRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
+            setIncoming((prev) => prev.filter((r) => r.id !== req.id));
             f7.toast.create({ text: 'Anfrage abgelehnt', closeTimeout: 1200 }).open();
         } catch (e) {
-            console.error(e);
+            console.error('[rejectRequest] error:', e);
             f7.dialog.alert(e.message || String(e), 'Ablehnen fehlgeschlagen');
         }
     };
@@ -335,12 +387,29 @@ export default function FriendsPage({ f7router }) {
         try {
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'cancelled',
-                updatedAt: serverTimestamp(),
+                updatedAt: new Date(),
+                updatedAtServer: serverTimestamp(),
             });
+
+            console.log('[cancelRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
+            // outgoing ist pending-only im Snapshot -> nach cancel verschwindet es automatisch
+            // der lokale Filter ist nur "sofortiges" UI:
+            setOutgoing((prev) => prev.filter((r) => r.id !== req.id));
+
             f7.toast.create({ text: 'Anfrage storniert', closeTimeout: 1200 }).open();
         } catch (e) {
-            console.error(e);
+            console.error('[cancelRequest] error:', e);
             f7.dialog.alert(e.message || String(e), 'Stornieren fehlgeschlagen');
+        }
+    };
+
+    const removeFriend = async (friendDoc) => {
+        try {
+            await deleteDoc(doc(db, 'friends', friendDoc.id));
+            f7.toast.create({ text: 'Freund entfernt', closeTimeout: 1200 }).open();
+        } catch (e) {
+            console.error('[removeFriend] error:', e);
+            f7.dialog.alert(e.message || String(e), 'Entfernen fehlgeschlagen');
         }
     };
 
@@ -355,6 +424,11 @@ export default function FriendsPage({ f7router }) {
         if (row?.username) return `@${row.username}`;
         return row?.uid ? `${row.uid.slice(0, 6)}…` : '(unbekannt)';
     };
+
+    const getIncomingForUid = (uid) => incoming.find((r) => r.fromUid === uid);
+
+    // outgoing ist pending-only, daher reicht toUid match
+    const getOutgoingPendingForUid = (uid) => outgoing.find((r) => r.toUid === uid);
 
     return (
         <Page name="friends">
@@ -403,11 +477,31 @@ export default function FriendsPage({ f7router }) {
                                         key={u.uid}
                                         title={labelForUserRow(u)}
                                         subtitle={u.email || ''}
-                                        after={
-                                            <Button small fill onClick={() => sendRequest(u.uid)}>
-                                                Anfrage
-                                            </Button>
-                                        }
+                                        after={(() => {
+                                            const isFriend = friendsDocs.some((f) => (f.uids || []).includes(u.uid));
+                                            if (isFriend) return <span style={{ fontSize: 12, opacity: 0.7 }}>Freund</span>;
+
+                                            const inc = getIncomingForUid(u.uid);
+                                            if (inc) return <span style={{ fontSize: 12, opacity: 0.7 }}>Eingehend</span>;
+
+                                            const out = getOutgoingPendingForUid(u.uid);
+                                            if (out) {
+                                                return (
+                                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                        <span style={{ fontSize: 12, opacity: 0.7 }}>Angefragt</span>
+                                                        <Button small outline onClick={() => cancelRequest(out)}>
+                                                            Zurückziehen
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <Button small fill onClick={() => sendRequest(u.uid)}>
+                                                    Anfrage
+                                                </Button>
+                                            );
+                                        })()}
                                     />
                                 ))}
                             </List>
@@ -428,11 +522,31 @@ export default function FriendsPage({ f7router }) {
                                         key={u.uid}
                                         title={labelForUserRow(u)}
                                         subtitle={u.email || ''}
-                                        after={
-                                            <Button small outline onClick={() => sendRequest(u.uid)}>
-                                                Anfrage
-                                            </Button>
-                                        }
+                                        after={(() => {
+                                            const isFriend = friendsDocs.some((f) => (f.uids || []).includes(u.uid));
+                                            if (isFriend) return <span style={{ fontSize: 12, opacity: 0.7 }}>Freund</span>;
+
+                                            const inc = getIncomingForUid(u.uid);
+                                            if (inc) return <span style={{ fontSize: 12, opacity: 0.7 }}>Eingehend</span>;
+
+                                            const out = getOutgoingPendingForUid(u.uid);
+                                            if (out) {
+                                                return (
+                                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                        <span style={{ fontSize: 12, opacity: 0.7 }}>Angefragt</span>
+                                                        <Button small outline onClick={() => cancelRequest(out)}>
+                                                            Zurückziehen
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <Button small outline onClick={() => sendRequest(u.uid)}>
+                                                    Anfrage
+                                                </Button>
+                                            );
+                                        })()}
                                     />
                                 ))}
                             </List>
@@ -463,29 +577,6 @@ export default function FriendsPage({ f7router }) {
                         )}
                     </Block>
 
-                    {/* Ausgehend */}
-                    <BlockTitle>Anfragen (ausgehend)</BlockTitle>
-                    <Block strong inset>
-                        {outgoing.length === 0 ? (
-                            <div style={{ opacity: 0.7 }}>Keine offenen Anfragen.</div>
-                        ) : (
-                            <List inset strong style={{ margin: 0 }}>
-                                {outgoing.map((req) => (
-                                    <ListItem
-                                        key={req.id}
-                                        title={labelForUid(req.toUid)}
-                                        subtitle="wartet auf Antwort"
-                                        after={
-                                            <Button small outline onClick={() => cancelRequest(req)}>
-                                                Stornieren
-                                            </Button>
-                                        }
-                                    />
-                                ))}
-                            </List>
-                        )}
-                    </Block>
-
                     {/* Freunde */}
                     <BlockTitle>Meine Freunde</BlockTitle>
                     <Block strong inset>
@@ -495,11 +586,42 @@ export default function FriendsPage({ f7router }) {
                             <List inset strong style={{ margin: 0 }}>
                                 {friendsDocs.map((fr) => {
                                     const otherUid = (fr.uids || []).find((u) => u !== myUid) || '';
+                                    const friendProfile = friendsProfiles[otherUid] || {};
+                                    const isOnline = !!friendProfile.online;
                                     return (
                                         <ListItem
                                             key={fr.id}
                                             title={labelForUid(otherUid)}
                                             subtitle="Freund"
+                                            after={
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <span
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 6,
+                                                            fontSize: 12,
+                                                            opacity: 0.8,
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                width: 8,
+                                                                height: 8,
+                                                                borderRadius: 999,
+                                                                background: isOnline
+                                                                    ? 'var(--f7-color-green)'
+                                                                    : 'var(--f7-color-gray)',
+                                                                display: 'inline-block',
+                                                            }}
+                                                        />
+                                                        {isOnline ? 'Online' : 'Offline'}
+                                                    </span>
+                                                    <Button small outline onClick={() => removeFriend(fr)}>
+                                                        Entfernen
+                                                    </Button>
+                                                </div>
+                                            }
                                         />
                                     );
                                 })}
