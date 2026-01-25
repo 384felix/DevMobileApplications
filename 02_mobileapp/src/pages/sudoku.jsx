@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Page,
     Navbar,
+    NavRight,
     Block,
     BlockTitle,
     BlockFooter,
@@ -12,10 +13,7 @@ import {
     f7,
 } from 'framework7-react';
 import SudokuGrid from '../components/SudokuGrid.jsx';
-
-import { NavRight } from 'framework7-react';
 import ProfileButton from '../components/ProfileButton.jsx';
-
 
 // ✅ Firebase
 import { auth, db } from '../js/firebase';
@@ -164,7 +162,6 @@ function pickRandomPuzzleByDifficulty(diff) {
 
 // ✅ Firestore-safe serialize/deserialize (keine nested arrays)
 function gridToString(g) {
-    // 81 Zeichen, jeweils 0-9
     let out = '';
     for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) out += String(g[r][c] ?? 0);
     return out;
@@ -270,10 +267,7 @@ export default function SudokuPage() {
     const [helpEnabled, setHelpEnabled] = useState(true);
     const [solved, setSolved] = useState(false);
 
-    const invalid = useMemo(
-        () => computeInvalidMatrix(grid, given, helpEnabled),
-        [grid, given, helpEnabled]
-    );
+    const invalid = useMemo(() => computeInvalidMatrix(grid, given, helpEnabled), [grid, given, helpEnabled]);
 
     const isComplete = useMemo(() => {
         for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (grid[r][c] === 0) return false;
@@ -347,8 +341,6 @@ export default function SudokuPage() {
                 const data = snap.data();
 
                 const loadedDifficulty = data.difficulty || 'easy';
-
-                // ✅ String -> Grid
                 const loadedPuzzle = stringToGrid(data.puzzleStr) || pickRandomPuzzleByDifficulty(loadedDifficulty);
                 const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
 
@@ -358,9 +350,7 @@ export default function SudokuPage() {
 
                 setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
                 setSolved(!!data.solved);
-                setSelected(
-                    data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 }
-                );
+                setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
 
                 hasLoadedRef.current = true;
             } catch (e) {
@@ -390,7 +380,6 @@ export default function SudokuPage() {
                     updatedAt: serverTimestamp(),
 
                     difficulty,
-                    // ✅ statt nested arrays:
                     puzzleStr: gridToString(puzzle),
                     gridStr: gridToString(grid),
 
@@ -410,7 +399,7 @@ export default function SudokuPage() {
         }
     };
 
-    // (Optional) Auto-Save debounced – ebenfalls Firestore-safe
+    // ✅ Auto-Save debounced – ebenfalls Firestore-safe
     const saveTimer = useRef(null);
     useEffect(() => {
         if (!saveRef) return;
@@ -505,12 +494,11 @@ export default function SudokuPage() {
 
     return (
         <Page name="sudoku">
-
-            <NavRight>
-                <ProfileButton />
-            </NavRight>
-
-            <Navbar title="Sudoku" />
+            <Navbar title="Sudoku">
+                <NavRight>
+                    <ProfileButton />
+                </NavRight>
+            </Navbar>
 
             <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                 <div>
@@ -524,27 +512,35 @@ export default function SudokuPage() {
                         </>
                     )}
                 </div>
-                <div style={{ opacity: 0.7 }}>
-                    {loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}
-                </div>
+                <div style={{ opacity: 0.7 }}>{loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}</div>
             </Block>
 
             <BlockTitle>Schwierigkeit</BlockTitle>
             <Block>
                 <Segmented raised>
-                    <Button small active={difficulty === 'easy'} onClick={() => setDifficultyAndLoad('easy')}>Easy</Button>
-                    <Button small active={difficulty === 'medium'} onClick={() => setDifficultyAndLoad('medium')}>Medium</Button>
-                    <Button small active={difficulty === 'hard'} onClick={() => setDifficultyAndLoad('hard')}>Hard</Button>
+                    <Button small active={difficulty === 'easy'} onClick={() => setDifficultyAndLoad('easy')}>
+                        Easy
+                    </Button>
+                    <Button small active={difficulty === 'medium'} onClick={() => setDifficultyAndLoad('medium')}>
+                        Medium
+                    </Button>
+                    <Button small active={difficulty === 'hard'} onClick={() => setDifficultyAndLoad('hard')}>
+                        Hard
+                    </Button>
                 </Segmented>
 
-                <div style={{ marginTop: 10, fontWeight: 700 }}>
-                    Aktuell: {difficulty.toUpperCase()}
-                </div>
+                <div style={{ marginTop: 10, fontWeight: 700 }}>Aktuell: {difficulty.toUpperCase()}</div>
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <Button fill onClick={loadNewPuzzle}>Neues Sudoku</Button>
-                    <Button outline onClick={resetPuzzle}>Reset</Button>
-                    <Button outline onClick={fillWithSolution}>Debug: Lösung einfügen</Button>
+                    <Button fill onClick={loadNewPuzzle}>
+                        Neues Sudoku
+                    </Button>
+                    <Button outline onClick={resetPuzzle}>
+                        Reset
+                    </Button>
+                    <Button outline onClick={fillWithSolution}>
+                        Debug: Lösung einfügen
+                    </Button>
 
                     {/* ✅ Speichern-Button */}
                     <Button fill disabled={!user || savingNow || loadingSave} onClick={manualSave}>
@@ -557,11 +553,7 @@ export default function SudokuPage() {
                         </Button>
                     )}
 
-                    {solved && (
-                        <span style={{ alignSelf: 'center', fontWeight: 700 }}>
-                            ✅ Gelöst
-                        </span>
-                    )}
+                    {solved && <span style={{ alignSelf: 'center', fontWeight: 700 }}>✅ Gelöst</span>}
                 </div>
             </Block>
 
@@ -574,7 +566,7 @@ export default function SudokuPage() {
                     selected={selected}
                     solved={solved}
                     onSelect={(r, c) => setSelected({ r, c })}
-                    focusKeyboard={() => inputRef.current?.focus({ preventScroll: true })}
+                    focusKeyboard={focusKeyboard}
                 />
 
                 <input
@@ -615,7 +607,8 @@ export default function SudokuPage() {
             </List>
 
             <BlockFooter>
-                Jetzt speichert Firestore: <b>gridStr</b> und <b>puzzleStr</b> (81 Zeichen). In Firebase solltest du eine Collection <b>sudokuSaves</b> sehen.
+                Jetzt speichert Firestore: <b>gridStr</b> und <b>puzzleStr</b> (81 Zeichen). In Firebase solltest du eine Collection{' '}
+                <b>sudokuSaves</b> sehen.
             </BlockFooter>
         </Page>
     );

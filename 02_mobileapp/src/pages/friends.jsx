@@ -1,13 +1,14 @@
 import React from 'react';
-import { Page, Navbar, Block, BlockTitle } from 'framework7-react';
+import { Page, Navbar, Block, BlockTitle, NavRight } from 'framework7-react';
 import ProfileButton from '../components/ProfileButton.jsx';
 
 export default function FriendsPage() {
     return (
         <Page name="friends">
             <Navbar title="Freunde">
-                {/* Profil-Icon auch hier */}
-                <ProfileButton />
+                <NavRight>
+                    <ProfileButton />
+                </NavRight>
             </Navbar>
 
             <BlockTitle>Deine Freunde</BlockTitle>
