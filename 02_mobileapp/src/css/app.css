@@ -57,8 +57,10 @@
 /* Sudoku-Header: Titel exakt zentrieren */
 .navbar .title.sudoku-title-centered {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    width: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
     text-align: center;
+    padding: 0 56px;
+    box-sizing: border-box;
 }
