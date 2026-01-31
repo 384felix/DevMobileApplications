@@ -379,6 +379,8 @@ export default function SudokuPage(props) {
     const selectionOverrideRef = useRef(false);
     const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
     const [displayName, setDisplayName] = useState('');
+    const displayNameLower = (displayName || '').trim().toLowerCase();
+    const canUseSolutionDebug = displayNameLower === 'flizzmaster' || displayNameLower === 'felixs';
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
@@ -867,9 +869,11 @@ export default function SudokuPage(props) {
                     <Button outline onClick={resetPuzzle}>
                         Reset
                     </Button>
-                    <Button outline onClick={fillWithSolution}>
-                        Debug: Lösung einfügen
-                    </Button>
+                    {canUseSolutionDebug && (
+                        <Button outline onClick={fillWithSolution}>
+                            Debug: Lösung einfügen
+                        </Button>
+                    )}
 
                     {/* ✅ Speichern-Button */}
                     <Button fill disabled={!user || savingNow || loadingSave} onClick={manualSave}>
