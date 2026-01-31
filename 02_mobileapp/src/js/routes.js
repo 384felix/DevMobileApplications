@@ -1,4 +1,6 @@
 import SudokuPage from '../pages/sudoku.jsx';
+import SudokuMenuPage from '../pages/sudoku-menu.jsx';
+import SudokuListPage from '../pages/sudoku-list.jsx';
 import FriendsPage from '../pages/friends.jsx';
 import ProfilePage from '../pages/profile.jsx';
 import NotFoundPage from '../pages/404.jsx';
@@ -8,6 +10,8 @@ var routes = [
   { path: '/', redirect: '/sudoku/' },
 
   { path: '/sudoku/', component: SudokuPage },
+  { path: '/sudoku-menu/', component: SudokuMenuPage },
+  { path: '/sudoku-list/', component: SudokuListPage },
   { path: '/friends/', component: FriendsPage },
   { path: '/leaderboard/', component: LeaderboardPage },
 

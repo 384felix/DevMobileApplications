@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Page,
     Navbar,
+    NavLeft,
     NavRight,
     Block,
-    BlockTitle,
     BlockFooter,
     List,
     ListItem,
     Button,
-    Segmented,
+    Link,
     f7,
 } from 'framework7-react';
 import SudokuGrid from '../components/SudokuGrid.jsx';
@@ -34,115 +34,111 @@ const SOLUTION_BASE = [
     [3, 4, 5, 2, 8, 6, 1, 7, 9],
 ];
 
+const clone9Static = (g) => g.map((row) => row.slice());
+
+function lcg(seed) {
+    let s = seed | 0;
+    return () => {
+        s = (s * 1664525 + 1013904223) | 0;
+        return (s >>> 0) / 4294967296;
+    };
+}
+
+function rngFromSeed(seed) {
+    const h = hashStringToInt(String(seed));
+    return lcg(h);
+}
+
+function shuffleInPlace(arr, rand) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
+function permuteSolutionFromSeed(seed) {
+    const rand = rngFromSeed(seed);
+
+    const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    shuffleInPlace(digits, rand);
+    const digitMap = new Map();
+    for (let i = 0; i < 9; i++) digitMap.set(i + 1, digits[i]);
+
+    const bandOrder = [0, 1, 2];
+    shuffleInPlace(bandOrder, rand);
+    const rowOrder = [];
+    for (const b of bandOrder) {
+        const rows = [0, 1, 2];
+        shuffleInPlace(rows, rand);
+        for (const r of rows) rowOrder.push(b * 3 + r);
+    }
+
+    const stackOrder = [0, 1, 2];
+    shuffleInPlace(stackOrder, rand);
+    const colOrder = [];
+    for (const s of stackOrder) {
+        const cols = [0, 1, 2];
+        shuffleInPlace(cols, rand);
+        for (const c of cols) colOrder.push(s * 3 + c);
+    }
+
+    const transpose = rand() < 0.5;
+    const out = Array.from({ length: 9 }, () => Array(9).fill(0));
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const baseVal = SOLUTION_BASE[rowOrder[r]][colOrder[c]];
+            const v = digitMap.get(baseVal) || baseVal;
+            if (transpose) out[c][r] = v;
+            else out[r][c] = v;
+        }
+    }
+
+    return out;
+}
+
+function makeMask(maskSeed, clues) {
+    const rand = rngFromSeed(maskSeed);
+    const total = 81;
+    const keep = Math.max(0, Math.min(total, clues));
+    const indices = Array.from({ length: total }, (_, i) => i);
+    shuffleInPlace(indices, rand);
+    const mask = Array(total).fill('0');
+    for (let i = 0; i < keep; i++) mask[indices[i]] = '1';
+    return mask.join('');
+}
+
+function buildPuzzleFromSeedAndMask(seed, mask) {
+    const solution = permuteSolutionFromSeed(seed);
+    const puzzle = clone9Static(solution);
+    for (let i = 0; i < 81; i++) {
+        if (mask[i] !== '1') {
+            puzzle[Math.floor(i / 9)][i % 9] = 0;
+        }
+    }
+    return puzzle;
+}
+
 // =========================
-// Easy / Medium / Hard (je 3)
-const EASY_PUZZLES = [
-    [
-        [5, 3, 0, 6, 0, 0, 9, 0, 2],
-        [0, 0, 0, 1, 9, 5, 3, 0, 8],
-        [0, 0, 8, 0, 0, 0, 5, 0, 7],
-        [8, 5, 0, 0, 6, 1, 4, 2, 0],
-        [0, 2, 0, 0, 0, 3, 0, 9, 0],
-        [0, 1, 0, 9, 2, 0, 8, 0, 6],
-        [9, 6, 0, 5, 0, 0, 2, 0, 4],
-        [2, 8, 7, 4, 0, 0, 0, 0, 0],
-        [3, 4, 5, 2, 0, 0, 0, 0, 0],
-    ],
-    [
-        [5, 0, 4, 0, 7, 8, 0, 1, 0],
-        [6, 7, 0, 1, 0, 0, 0, 4, 8],
-        [0, 9, 8, 3, 4, 0, 5, 0, 7],
-        [8, 5, 9, 0, 6, 1, 0, 2, 0],
-        [0, 2, 0, 8, 5, 0, 7, 9, 1],
-        [7, 0, 3, 9, 0, 4, 8, 5, 0],
-        [9, 6, 1, 0, 3, 7, 2, 8, 0],
-        [2, 0, 7, 4, 1, 9, 0, 0, 5],
-        [0, 4, 5, 2, 0, 6, 1, 7, 9],
-    ],
-    [
-        [0, 3, 4, 0, 0, 8, 9, 0, 2],
-        [6, 0, 2, 1, 9, 0, 3, 4, 0],
-        [1, 9, 0, 3, 0, 2, 0, 6, 7],
-        [8, 0, 9, 7, 6, 0, 4, 0, 3],
-        [4, 2, 0, 0, 5, 3, 7, 9, 0],
-        [0, 1, 3, 0, 2, 4, 8, 0, 6],
-        [9, 6, 1, 5, 0, 0, 2, 8, 4],
-        [2, 0, 7, 4, 1, 9, 6, 0, 5],
-        [3, 4, 5, 0, 8, 6, 0, 7, 0],
-    ],
-];
+// Easy / Medium / Hard (je 10, deterministisch aus Basis)
+const EASY_SEEDS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'E10'];
+const MEDIUM_SEEDS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'];
+const HARD_SEEDS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9', 'H10'];
 
-const MEDIUM_PUZZLES = [
-    [
-        [5, 0, 4, 6, 7, 8, 0, 0, 0],
-        [0, 7, 2, 1, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 2, 5, 0, 0],
-        [0, 5, 0, 0, 0, 0, 4, 0, 0],
-        [0, 0, 6, 8, 0, 3, 0, 0, 0],
-        [0, 0, 3, 0, 0, 4, 0, 0, 6],
-        [0, 0, 0, 5, 3, 7, 2, 8, 0],
-        [0, 0, 7, 0, 0, 0, 0, 0, 5],
-        [0, 4, 0, 2, 8, 6, 0, 7, 9],
-    ],
-    [
-        [0, 0, 4, 6, 0, 0, 9, 0, 2],
-        [6, 7, 0, 0, 9, 0, 0, 0, 0],
-        [0, 9, 8, 0, 4, 0, 5, 6, 0],
-        [8, 0, 0, 7, 0, 0, 0, 2, 0],
-        [0, 0, 6, 0, 5, 0, 7, 0, 0],
-        [0, 1, 0, 0, 0, 4, 0, 0, 6],
-        [9, 0, 0, 5, 0, 7, 2, 0, 4],
-        [0, 8, 0, 4, 0, 9, 0, 3, 0],
-        [3, 0, 0, 0, 8, 6, 1, 0, 0],
-    ],
-    [
-        [5, 3, 0, 0, 7, 0, 0, 1, 0],
-        [0, 0, 2, 1, 0, 5, 0, 0, 8],
-        [1, 0, 0, 3, 0, 0, 5, 0, 0],
-        [0, 5, 9, 0, 6, 1, 0, 0, 0],
-        [4, 0, 0, 8, 0, 3, 7, 0, 1],
-        [0, 0, 3, 0, 2, 0, 0, 5, 0],
-        [0, 6, 1, 5, 0, 7, 0, 0, 4],
-        [2, 0, 0, 0, 1, 0, 6, 0, 0],
-        [0, 4, 0, 2, 8, 6, 0, 7, 9],
-    ],
-];
-
-const HARD_PUZZLES = [
-    [
-        [5, 3, 4, 0, 0, 0, 0, 0, 2],
-        [0, 0, 0, 0, 0, 5, 0, 0, 0],
-        [1, 0, 0, 0, 4, 0, 0, 0, 7],
-        [0, 5, 0, 0, 0, 1, 4, 0, 0],
-        [0, 0, 6, 8, 0, 0, 0, 0, 1],
-        [7, 0, 0, 9, 0, 0, 8, 0, 0],
-        [0, 0, 1, 0, 3, 0, 2, 0, 0],
-        [0, 8, 0, 0, 0, 9, 0, 0, 0],
-        [3, 0, 5, 0, 0, 0, 0, 7, 0],
-    ],
-    [
-        [0, 0, 4, 6, 0, 0, 0, 0, 2],
-        [6, 0, 0, 0, 0, 0, 3, 0, 0],
-        [0, 9, 0, 0, 4, 0, 0, 6, 0],
-        [8, 0, 0, 7, 0, 0, 0, 0, 0],
-        [0, 0, 6, 0, 5, 0, 0, 0, 1],
-        [0, 1, 0, 0, 0, 4, 0, 0, 0],
-        [9, 0, 0, 0, 3, 0, 2, 0, 0],
-        [0, 0, 7, 0, 0, 9, 0, 0, 5],
-        [0, 4, 0, 0, 0, 0, 0, 0, 0],
-    ],
-    [
-        [5, 0, 0, 0, 0, 8, 0, 0, 0],
-        [0, 7, 0, 0, 0, 0, 3, 0, 0],
-        [1, 0, 8, 0, 4, 0, 0, 0, 0],
-        [0, 5, 0, 7, 0, 0, 0, 0, 0],
-        [0, 0, 6, 0, 0, 3, 7, 0, 0],
-        [0, 0, 0, 0, 2, 0, 8, 0, 6],
-        [0, 0, 1, 0, 0, 7, 0, 0, 4],
-        [2, 0, 0, 0, 0, 0, 0, 3, 0],
-        [0, 4, 0, 2, 0, 0, 0, 0, 9],
-    ],
-];
+const EASY_PUZZLES = EASY_SEEDS.map((seed, i) => ({
+    seed,
+    mask: makeMask(`${seed}-mask-${i}`, 42),
+}));
+const MEDIUM_PUZZLES = MEDIUM_SEEDS.map((seed, i) => ({
+    seed,
+    mask: makeMask(`${seed}-mask-${i}`, 38),
+}));
+const HARD_PUZZLES = HARD_SEEDS.map((seed, i) => ({
+    seed,
+    mask: makeMask(`${seed}-mask-${i}`, 24),
+}));
 
 // -------------------------
 const clone9 = (g) => g.map((row) => row.slice());
@@ -154,10 +150,109 @@ function poolByDiff(diff) {
     return EASY_PUZZLES;
 }
 
+function normalizeIndex(idx, len) {
+    if (!Number.isFinite(idx) || len <= 0) return 0;
+    return ((idx % len) + len) % len;
+}
+
+function getLocalDateKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function hashStringToInt(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+        h = (h * 31 + s.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+}
+
 function pickRandomPuzzleByDifficulty(diff) {
     const pool = poolByDiff(diff);
     const idx = Math.floor(Math.random() * pool.length);
-    return pool[idx];
+    const entry = pool[idx];
+    return {
+        puzzle: buildPuzzleFromSeedAndMask(entry.seed, entry.mask),
+        poolIndex: idx,
+        seed: entry.seed,
+        mask: entry.mask,
+    };
+}
+
+function pickDailyPuzzleByDifficulty(diff, dateKey) {
+    const pool = poolByDiff(diff);
+    const idx = hashStringToInt(`${dateKey}:${diff}`) % pool.length;
+    const entry = pool[idx];
+    return {
+        puzzle: buildPuzzleFromSeedAndMask(entry.seed, entry.mask),
+        poolIndex: idx,
+        seed: entry.seed,
+        mask: entry.mask,
+    };
+}
+
+function pickPuzzleByIndex(diff, index) {
+    const pool = poolByDiff(diff);
+    const idx = normalizeIndex(index, pool.length);
+    const entry = pool[idx];
+    return {
+        puzzle: buildPuzzleFromSeedAndMask(entry.seed, entry.mask),
+        poolIndex: idx,
+        seed: entry.seed,
+        mask: entry.mask,
+    };
+}
+
+function getSolvedStorageKey(uid) {
+    return `sudokuSolved_v1:${uid || 'anon'}`;
+}
+
+function readSolvedMap(uid) {
+    try {
+        const raw = localStorage.getItem(getSolvedStorageKey(uid));
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writeSolvedMap(uid, map) {
+    try {
+        localStorage.setItem(getSolvedStorageKey(uid), JSON.stringify(map));
+    } catch {
+        // ignore storage errors
+    }
+}
+
+function markSolved(uid, diff, poolIndex) {
+    if (!diff || !Number.isFinite(poolIndex)) return;
+    const map = readSolvedMap(uid);
+    map[`${diff}:${poolIndex}`] = true;
+    writeSolvedMap(uid, map);
+}
+
+function readPendingSelection() {
+    try {
+        const raw = sessionStorage.getItem('sudokuSelection');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function clearPendingSelection() {
+    try {
+        sessionStorage.removeItem('sudokuSelection');
+    } catch {
+        // ignore
+    }
 }
 
 // ✅ Firestore-safe serialize/deserialize (keine nested arrays)
@@ -247,19 +342,29 @@ function isSolvedGrid(grid) {
 }
 
 // =========================
-export default function SudokuPage() {
+export default function SudokuPage(props) {
     // ✅ Auth / Save
     const [user, setUser] = useState(null);
     const [loadingSave, setLoadingSave] = useState(false);
     const [savingNow, setSavingNow] = useState(false);
+    const [mode, setMode] = useState('offline');
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
 
     // -------------------------
+    const initialPickRef = useRef(null);
+    if (!initialPickRef.current) {
+        initialPickRef.current = pickRandomPuzzleByDifficulty('easy');
+    }
+
     const [difficulty, setDifficulty] = useState('easy');
-    const [puzzle, setPuzzle] = useState(() => pickRandomPuzzleByDifficulty('easy'));
-    const [grid, setGrid] = useState(() => clone9(puzzle));
+    const [puzzle, setPuzzle] = useState(() => initialPickRef.current.puzzle);
+    const [puzzleIndex, setPuzzleIndex] = useState(() => initialPickRef.current.poolIndex);
+    const [puzzleSeed, setPuzzleSeed] = useState(() => initialPickRef.current.seed);
+    const [puzzleMask, setPuzzleMask] = useState(() => initialPickRef.current.mask);
+    const [puzzleListIndex, setPuzzleListIndex] = useState(null);
+    const [grid, setGrid] = useState(() => clone9(initialPickRef.current.puzzle));
 
     const given = useMemo(() => computeGiven(puzzle), [puzzle]);
 
@@ -311,10 +416,15 @@ export default function SudokuPage() {
             lastUidRef.current = currentUid;
             hasLoadedRef.current = false;
 
+            setMode('offline');
             setDifficulty('easy');
-            const freshPuzzle = pickRandomPuzzleByDifficulty('easy');
-            setPuzzle(freshPuzzle);
-            setGrid(clone9(freshPuzzle));
+            const freshPick = pickRandomPuzzleByDifficulty('easy');
+            setPuzzle(freshPick.puzzle);
+            setPuzzleIndex(freshPick.poolIndex);
+            setPuzzleSeed(freshPick.seed);
+            setPuzzleMask(freshPick.mask);
+            setPuzzleListIndex(null);
+            setGrid(clone9(freshPick.puzzle));
             setHelpEnabled(true);
             setSolved(false);
             setSelected({ r: 0, c: 0 });
@@ -323,6 +433,17 @@ export default function SudokuPage() {
 
     // ✅ LOAD: Save laden (falls existiert)
     useEffect(() => {
+        const routeQuery = props?.f7route?.query || {};
+        const hasExplicitSelection =
+            routeQuery.puzzleIndex != null || routeQuery.mode != null || routeQuery.difficulty != null;
+        const hasPendingSelection = !!readPendingSelection();
+
+        if (hasExplicitSelection || hasPendingSelection) {
+            // URL-Auswahl soll nicht direkt vom gespeicherten Spiel überschrieben werden
+            hasLoadedRef.current = true;
+            return;
+        }
+
         if (!saveRef) {
             hasLoadedRef.current = false;
             return;
@@ -340,12 +461,34 @@ export default function SudokuPage() {
 
                 const data = snap.data();
 
+                const loadedMode = data.mode === 'daily' ? 'daily' : 'offline';
                 const loadedDifficulty = data.difficulty || 'easy';
-                const loadedPuzzle = stringToGrid(data.puzzleStr) || pickRandomPuzzleByDifficulty(loadedDifficulty);
+                const fallbackPick =
+                    loadedMode === 'daily'
+                        ? pickDailyPuzzleByDifficulty(loadedDifficulty, getLocalDateKey())
+                        : pickRandomPuzzleByDifficulty(loadedDifficulty);
+                const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
+                const seedMaskPick = hasSeedMask
+                    ? {
+                          puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
+                          seed: data.puzzleSeed,
+                          mask: data.puzzleMask,
+                      }
+                    : null;
+                const loadedPuzzle =
+                    stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
                 const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
+                const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex)
+                    ? data.puzzleIndex
+                    : fallbackPick.poolIndex;
 
+                setMode(loadedMode);
                 setDifficulty(loadedDifficulty);
                 setPuzzle(loadedPuzzle);
+                setPuzzleIndex(loadedPuzzleIndex);
+                setPuzzleSeed(seedMaskPick?.seed || fallbackPick.seed);
+                setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
+                setPuzzleListIndex(null);
                 setGrid(loadedGrid);
 
                 setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
@@ -379,7 +522,11 @@ export default function SudokuPage() {
                     uid: user.uid,
                     updatedAt: serverTimestamp(),
 
+                    mode,
                     difficulty,
+                    puzzleIndex,
+                    puzzleSeed,
+                    puzzleMask,
                     puzzleStr: gridToString(puzzle),
                     gridStr: gridToString(grid),
 
@@ -414,7 +561,11 @@ export default function SudokuPage() {
                     {
                         uid: user.uid,
                         updatedAt: serverTimestamp(),
+                        mode,
                         difficulty,
+                        puzzleIndex,
+                        puzzleSeed,
+                        puzzleMask,
                         puzzleStr: gridToString(puzzle),
                         gridStr: gridToString(grid),
                         helpEnabled,
@@ -431,7 +582,7 @@ export default function SudokuPage() {
         return () => {
             if (saveTimer.current) clearTimeout(saveTimer.current);
         };
-    }, [saveRef, user, difficulty, puzzle, grid, helpEnabled, solved, selected]);
+    }, [saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
 
     // Keyboard
     useEffect(() => {
@@ -453,13 +604,51 @@ export default function SudokuPage() {
     }, [selected, solved]);
 
     // Aktionen
-    const setDifficultyAndLoad = (diff) => {
-        setDifficulty(diff);
-        const nextPuzzle = pickRandomPuzzleByDifficulty(diff);
-        setPuzzle(nextPuzzle);
+    const loadPuzzleForMode = (diff, nextMode = mode) => {
+        const dateKey = getLocalDateKey();
+        const nextPick =
+            nextMode === 'daily' ? pickDailyPuzzleByDifficulty(diff, dateKey) : pickRandomPuzzleByDifficulty(diff);
+        setPuzzle(nextPick.puzzle);
+        setPuzzleIndex(nextPick.poolIndex);
+        setPuzzleSeed(nextPick.seed);
+        setPuzzleMask(nextPick.mask);
+        setPuzzleListIndex(null);
         setSolved(false);
-        setGrid(clone9(nextPuzzle));
+        setGrid(clone9(nextPick.puzzle));
         setSelected({ r: 0, c: 0 });
+    };
+
+    const applySelection = (sel) => {
+        if (!sel) return;
+        const nextMode = sel.mode === 'daily' || sel.mode === 'offline' ? sel.mode : null;
+        const nextDifficulty =
+            sel.difficulty === 'easy' || sel.difficulty === 'medium' || sel.difficulty === 'hard'
+                ? sel.difficulty
+                : null;
+        const parsedPuzzleIndex = parseInt(sel.puzzleIndex, 10);
+        const hasPuzzleIndex = Number.isFinite(parsedPuzzleIndex);
+
+        if (!nextMode && !nextDifficulty && !hasPuzzleIndex) return;
+
+        const finalMode = nextMode || mode;
+        const finalDifficulty = nextDifficulty || difficulty;
+
+        if (nextMode) setMode(finalMode);
+        if (nextDifficulty) setDifficulty(finalDifficulty);
+
+        if (hasPuzzleIndex) {
+            const pick = pickPuzzleByIndex(finalDifficulty, parsedPuzzleIndex);
+            setPuzzle(pick.puzzle);
+            setPuzzleIndex(pick.poolIndex);
+            setPuzzleSeed(pick.seed);
+            setPuzzleMask(pick.mask);
+            setPuzzleListIndex(parsedPuzzleIndex);
+            setSolved(false);
+            setGrid(clone9(pick.puzzle));
+            setSelected({ r: 0, c: 0 });
+        } else {
+            loadPuzzleForMode(finalDifficulty, finalMode);
+        }
     };
 
     const resetPuzzle = () => {
@@ -469,17 +658,29 @@ export default function SudokuPage() {
     };
 
     const loadNewPuzzle = () => {
-        const nextPuzzle = pickRandomPuzzleByDifficulty(difficulty);
-        setPuzzle(nextPuzzle);
-        setSolved(false);
-        setGrid(clone9(nextPuzzle));
-        setSelected({ r: 0, c: 0 });
+        if (mode === 'daily') {
+            f7.toast
+                .create({ text: 'Tägliches Sudoku bleibt für heute gleich.', closeTimeout: 1800 })
+                .open();
+            return;
+        }
+        loadPuzzleForMode(difficulty);
     };
+
+    useEffect(() => {
+        const routeQuery = props?.f7route?.query || {};
+        applySelection(routeQuery);
+    }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
     const checkSolution = () => {
         const ok = isSolvedGrid(grid);
         if (ok) {
             setSolved(true);
+            if (mode === 'offline') {
+                if (Number.isFinite(puzzleListIndex)) {
+                    markSolved(user?.uid, difficulty, puzzleListIndex);
+                }
+            }
             f7.dialog.alert('Glückwunsch! Sudoku ist korrekt gelöst ✅');
         } else {
             f7.dialog.alert('Du hast noch Fehler oder Konflikte. Bitte erneut versuchen 🙂');
@@ -493,8 +694,22 @@ export default function SudokuPage() {
     };
 
     return (
-        <Page name="sudoku">
-            <Navbar title="Sudoku">
+        <Page
+            name="sudoku"
+            onPageBeforeIn={() => {
+                const pending = readPendingSelection();
+                if (pending) {
+                    applySelection(pending);
+                    clearPendingSelection();
+                }
+            }}
+        >
+            <Navbar title="">
+                <NavLeft>
+                    <Link href="/sudoku-menu/" iconF7="menu">
+                        Menü
+                    </Link>
+                </NavLeft>
                 <NavRight>
                     <ProfileButton />
                 </NavRight>
@@ -512,25 +727,16 @@ export default function SudokuPage() {
                         </>
                     )}
                 </div>
+                <div style={{ fontWeight: 700 }}>
+                    Modus: {mode === 'daily' ? `Tägliches Sudoku (${getLocalDateKey()})` : 'Offline'}
+                </div>
                 <div style={{ opacity: 0.7 }}>{loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}</div>
             </Block>
+            <Block inset>
+                Es wurde folgendes Sudoku gewählt. {difficulty} {puzzleSeed} {puzzleMask}
+            </Block>
 
-            <BlockTitle>Schwierigkeit</BlockTitle>
             <Block>
-                <Segmented raised>
-                    <Button small active={difficulty === 'easy'} onClick={() => setDifficultyAndLoad('easy')}>
-                        Easy
-                    </Button>
-                    <Button small active={difficulty === 'medium'} onClick={() => setDifficultyAndLoad('medium')}>
-                        Medium
-                    </Button>
-                    <Button small active={difficulty === 'hard'} onClick={() => setDifficultyAndLoad('hard')}>
-                        Hard
-                    </Button>
-                </Segmented>
-
-                <div style={{ marginTop: 10, fontWeight: 700 }}>Aktuell: {difficulty.toUpperCase()}</div>
-
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                     <Button fill onClick={loadNewPuzzle}>
                         Neues Sudoku
@@ -557,7 +763,6 @@ export default function SudokuPage() {
                 </div>
             </Block>
 
-            <BlockTitle>Sudoku</BlockTitle>
             <Block>
                 <SudokuGrid
                     grid={grid}
@@ -595,7 +800,6 @@ export default function SudokuPage() {
                 />
             </Block>
 
-            <BlockTitle>Hilfen</BlockTitle>
             <List inset strong>
                 <ListItem
                     checkbox
@@ -610,6 +814,7 @@ export default function SudokuPage() {
                 Jetzt speichert Firestore: <b>gridStr</b> und <b>puzzleStr</b> (81 Zeichen). In Firebase solltest du eine Collection{' '}
                 <b>sudokuSaves</b> sehen.
             </BlockFooter>
+
         </Page>
     );
 }

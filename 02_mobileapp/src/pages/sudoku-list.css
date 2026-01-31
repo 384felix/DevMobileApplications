@@ -1,0 +1,24 @@
+.sudoku-list-item .item-content {
+  cursor: pointer;
+}
+
+.sudoku-status {
+  display: inline-block;
+  min-width: 64px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sudoku-status.solved {
+  color: #0f5132;
+  background: #d1e7dd;
+}
+
+.sudoku-status.open {
+  color: #842029;
+  background: #f8d7da;
+}

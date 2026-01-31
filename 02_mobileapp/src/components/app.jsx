@@ -38,6 +38,8 @@ const MyApp = () => {
   const f7params = {
     name: 'Sudoku',
     theme: 'auto',
+    pushState: true,
+    pushStateRoot: '/',
 
     colors: {
       primary: '#1e3a8a', // dunkelblau
