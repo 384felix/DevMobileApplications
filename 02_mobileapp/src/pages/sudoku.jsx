@@ -19,7 +19,7 @@ import puzzles from '../../tools/puzzles.json';
 // ✅ Firebase
 import { auth, db } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 
 // =========================
 // Lösung (Basis)
@@ -367,6 +367,7 @@ export default function SudokuPage(props) {
     const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
     const [stateDebug, setStateDebug] = useState('State: -');
     const [authDebug, setAuthDebug] = useState('Auth: -');
+    const [displayName, setDisplayName] = useState('');
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
@@ -421,6 +422,22 @@ export default function SudokuPage(props) {
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
     }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setDisplayName('');
+            return;
+        }
+        (async () => {
+            try {
+                const snap = await getDoc(doc(db, 'users', user.uid));
+                const data = snap.exists() ? snap.data() : {};
+                setDisplayName(data.username || user.email || '');
+            } catch (e) {
+                setDisplayName(user.email || '');
+            }
+        })();
+    }, [user]);
 
     // ✅ Doc Ref
     const saveRef = useMemo(() => {
@@ -780,6 +797,14 @@ export default function SudokuPage(props) {
                                 },
                                 { merge: true }
                             );
+                            await addDoc(collection(db, 'sudokuEvents'), {
+                                uid: user.uid,
+                                username: displayName || user.email || 'Unbekannt',
+                                difficulty,
+                                puzzleIndex: idx,
+                                mode: 'offline',
+                                createdAt: serverTimestamp(),
+                            });
                         } catch (e) {
                             console.error('Failed to update summary', e);
                         }

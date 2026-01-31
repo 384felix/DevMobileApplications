@@ -1,5 +1,5 @@
 // friends.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Page,
     Navbar,
@@ -432,6 +432,21 @@ export default function FriendsPage({ f7router }) {
     // outgoing ist pending-only, daher reicht toUid match
     const getOutgoingPendingForUid = (uid) => outgoing.find((r) => r.toUid === uid);
 
+    const friendUidSet = useMemo(() => {
+        const s = new Set();
+        friendsDocs.forEach((f) => {
+            (f.uids || []).forEach((uid) => {
+                if (uid) s.add(uid);
+            });
+        });
+        return s;
+    }, [friendsDocs]);
+
+    const filteredSuggestions = useMemo(
+        () => suggestions.filter((u) => !friendUidSet.has(u.uid)),
+        [suggestions, friendUidSet]
+    );
+
     return (
         <Page name="friends">
             <Navbar title="Freunde">
@@ -515,11 +530,11 @@ export default function FriendsPage({ f7router }) {
                     <Block strong inset>
                         {loadingSuggestions ? (
                             <div>lade…</div>
-                        ) : suggestions.length === 0 ? (
+                        ) : filteredSuggestions.length === 0 ? (
                             <div style={{ opacity: 0.7 }}>Keine Vorschläge gefunden.</div>
                         ) : (
                             <List inset strong style={{ margin: 0 }}>
-                                {suggestions.map((u) => (
+                                {filteredSuggestions.map((u) => (
                                     <ListItem
                                         key={u.uid}
                                         title={labelForUserRow(u)}
@@ -556,7 +571,7 @@ export default function FriendsPage({ f7router }) {
                     </Block>
 
                     {/* Eingehend */}
-                    <BlockTitle>Anfragen (eingehend)</BlockTitle>
+                    <BlockTitle>{incoming.length === 0 ? 'Anfragen' : 'Anfragen (eingehend)'}</BlockTitle>
                     <Block strong inset>
                         {incoming.length === 0 ? (
                             <div style={{ opacity: 0.7 }}>Keine neuen Anfragen.</div>
