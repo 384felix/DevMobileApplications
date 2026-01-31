@@ -348,6 +348,7 @@ export default function SudokuPage(props) {
     const [loadingSave, setLoadingSave] = useState(false);
     const [savingNow, setSavingNow] = useState(false);
     const [mode, setMode] = useState('offline');
+    const selectionOverrideRef = useRef(false);
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
@@ -408,6 +409,31 @@ export default function SudokuPage(props) {
         return doc(db, 'sudokuSaves', user.uid);
     }, [user]);
 
+    const persistSelection = async ({ nextMode, nextDifficulty, nextIndex, nextSeed, nextMask, nextPuzzle }) => {
+        if (!user || !saveRef) return;
+        try {
+            await setDoc(
+                saveRef,
+                {
+                    uid: user.uid,
+                    updatedAt: serverTimestamp(),
+                    mode: nextMode,
+                    difficulty: nextDifficulty,
+                    puzzleIndex: nextIndex,
+                    puzzleSeed: nextSeed,
+                    puzzleMask: nextMask,
+                    puzzleStr: gridToString(nextPuzzle),
+                    gridStr: gridToString(nextPuzzle),
+                    solved: false,
+                    selected: { r: 0, c: 0 },
+                },
+                { merge: true }
+            );
+        } catch (e) {
+            console.error('Failed to persist selection', e);
+        }
+    };
+
     // ✅ Wenn User wechselt oder Logout: lokale Anzeige NICHT vom vorherigen User behalten
     useEffect(() => {
         const currentUid = user?.uid ?? null;
@@ -438,8 +464,9 @@ export default function SudokuPage(props) {
             routeQuery.puzzleIndex != null || routeQuery.mode != null || routeQuery.difficulty != null;
         const hasPendingSelection = !!readPendingSelection();
 
-        if (hasExplicitSelection || hasPendingSelection) {
+        if (selectionOverrideRef.current || hasExplicitSelection || hasPendingSelection) {
             // URL-Auswahl soll nicht direkt vom gespeicherten Spiel überschrieben werden
+            selectionOverrideRef.current = false;
             hasLoadedRef.current = true;
             return;
         }
@@ -630,6 +657,8 @@ export default function SudokuPage(props) {
 
         if (!nextMode && !nextDifficulty && !hasPuzzleIndex) return;
 
+        selectionOverrideRef.current = true;
+
         const finalMode = nextMode || mode;
         const finalDifficulty = nextDifficulty || difficulty;
 
@@ -646,8 +675,21 @@ export default function SudokuPage(props) {
             setSolved(false);
             setGrid(clone9(pick.puzzle));
             setSelected({ r: 0, c: 0 });
+
+            persistSelection({
+                nextMode: finalMode,
+                nextDifficulty: finalDifficulty,
+                nextIndex: parsedPuzzleIndex,
+                nextSeed: pick.seed,
+                nextMask: pick.mask,
+                nextPuzzle: pick.puzzle,
+            });
         } else {
             loadPuzzleForMode(finalDifficulty, finalMode);
+        }
+
+        if (readPendingSelection()) {
+            setTimeout(() => clearPendingSelection(), 0);
         }
     };
 
@@ -700,7 +742,6 @@ export default function SudokuPage(props) {
                 const pending = readPendingSelection();
                 if (pending) {
                     applySelection(pending);
-                    clearPendingSelection();
                 }
             }}
         >
@@ -764,6 +805,11 @@ export default function SudokuPage(props) {
             </Block>
 
             <Block>
+                {mode === 'offline' && (
+                    <div style={{ marginBottom: 8, fontWeight: 700 }}>
+                        Schwierigkeit: {difficulty.toUpperCase()}
+                    </div>
+                )}
                 <SudokuGrid
                     grid={grid}
                     given={given}

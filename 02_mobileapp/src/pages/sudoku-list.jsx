@@ -74,9 +74,10 @@ export default function SudokuListPage(props) {
                                         {isSolved ? 'Gelöst' : 'Offen'}
                                     </span>
                                 }
-                                link={`/sudoku/?mode=offline&difficulty=${difficulty}&puzzleIndex=${idx}`}
+                                link
                                 className={`sudoku-list-item ${isSolved ? 'solved' : 'open'}`}
-                                onClick={() => {
+                                onClick={(e) => {
+                                    if (e?.preventDefault) e.preventDefault();
                                     try {
                                         sessionStorage.setItem(
                                             'sudokuSelection',
@@ -85,6 +86,10 @@ export default function SudokuListPage(props) {
                                     } catch {
                                         // ignore
                                     }
+                                    f7.views.main?.router.navigate(
+                                        `/sudoku/?mode=offline&difficulty=${difficulty}&puzzleIndex=${idx}`,
+                                        { reloadCurrent: true, ignoreCache: true }
+                                    );
                                 }}
                             />
                         );
