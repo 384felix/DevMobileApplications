@@ -4,6 +4,7 @@ import {
     Navbar,
     NavLeft,
     NavRight,
+    NavTitle,
     Block,
     BlockFooter,
     List,
@@ -224,6 +225,21 @@ function markSolved(uid, diff, poolIndex) {
     writeSolvedMap(uid, map);
 }
 
+function difficultyLabel(diff) {
+    if (diff === 'easy') return 'Easy';
+    if (diff === 'medium') return 'Medium';
+    if (diff === 'hard') return 'Hard';
+    return 'Sudoku';
+}
+
+function saveLastPlayed(payload) {
+    try {
+        localStorage.setItem('sudokuLastPlayed', JSON.stringify(payload));
+    } catch {
+        // ignore
+    }
+}
+
 function countGivens(grid) {
     let n = 0;
     for (let r = 0; r < 9; r++) {
@@ -361,12 +377,7 @@ export default function SudokuPage(props) {
     const [savingNow, setSavingNow] = useState(false);
     const [mode, setMode] = useState('offline');
     const selectionOverrideRef = useRef(false);
-    const [saveDebug, setSaveDebug] = useState('');
-    const [localSelectionDebug, setLocalSelectionDebug] = useState('Auswahl: -');
-    const [firebasePresenceDebug, setFirebasePresenceDebug] = useState('Firebase: -');
     const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
-    const [stateDebug, setStateDebug] = useState('State: -');
-    const [authDebug, setAuthDebug] = useState('Auth: -');
     const [displayName, setDisplayName] = useState('');
 
     const hasLoadedRef = useRef(false);
@@ -451,12 +462,10 @@ export default function SudokuPage(props) {
 
     const fetchFromFirebase = async () => {
         if (firebaseDisabled) {
-            setFirebasePresenceDebug('Firebase: deaktiviert (Debug)');
             setFirebaseCheckRequested(false);
             return;
         }
         if (!saveRef) {
-            setFirebasePresenceDebug('Firebase: Nein, es liegen keine Firebase-Daten ab.');
             return;
         }
         setLoadingSave(true);
@@ -464,12 +473,10 @@ export default function SudokuPage(props) {
             const snap = await getDoc(saveRef);
 
             if (!snap.exists()) {
-                setFirebasePresenceDebug('Firebase: Nein, es liegen keine Firebase-Daten ab.');
                 return;
             }
 
             const data = snap.data();
-            setFirebasePresenceDebug('Firebase: Ja, es liegen Firebase-Daten ab.');
 
             const loadedMode = data.mode === 'daily' ? 'daily' : 'offline';
             const loadedDifficulty = data.difficulty || 'easy';
@@ -508,12 +515,6 @@ export default function SudokuPage(props) {
             setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
             setPuzzleListIndex(null);
             setGrid(loadedGrid);
-            setSaveDebug(
-                `Firebase geladen: ${loadedMode} ${loadedDifficulty} idx ${loadedPuzzleIndex} givens ${countGivens(
-                    loadedPuzzle
-                )}`
-            );
-
             setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
             setSolved(!!data.solved);
             setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
@@ -525,15 +526,6 @@ export default function SudokuPage(props) {
             setFirebaseCheckRequested(false);
         }
     };
-
-    // ✅ Auth-Status beeinflusst keine Sudoku-Auswahl
-    useEffect(() => {
-        if (!user) {
-            setAuthDebug('Auth: nicht eingeloggt');
-        } else {
-            setAuthDebug(`Auth: eingeloggt (${user.uid})`);
-        }
-    }, [user]);
 
     // ✅ Firebase-Load nur per Button
     useEffect(() => {
@@ -658,6 +650,11 @@ export default function SudokuPage(props) {
         setGrid(clone9(nextPick.puzzle));
         setSelected({ r: 0, c: 0 });
         hasLoadedRef.current = true;
+        if (nextMode === 'offline') {
+            saveLastPlayed({ mode: 'offline', difficulty: diff, index: nextPick.poolIndex });
+        } else {
+            saveLastPlayed({ mode: 'daily', date: dateKey });
+        }
     };
 
     const applySelection = (sel) => {
@@ -674,10 +671,6 @@ export default function SudokuPage(props) {
         if (!nextMode && !nextDifficulty && !hasPuzzleIndex) return;
 
         selectionOverrideRef.current = true;
-        setStateDebug(
-            `State: Auswahl gesetzt (${nextDifficulty || difficulty} / idx ${Number.isFinite(parsedPuzzleIndex) ? parsedPuzzleIndex : '-'})`
-        );
-
         console.log('[Sudoku] applySelection:', {
             nextMode,
             nextDifficulty,
@@ -701,7 +694,6 @@ export default function SudokuPage(props) {
                 givens: countGivens(pick.puzzle),
                 seed: pick.seed,
             });
-            setLocalSelectionDebug(`Auswahl: ${finalDifficulty} idx ${parsedPuzzleIndex}`);
             setPuzzle(pick.puzzle);
             setPuzzleIndex(pick.poolIndex);
             setPuzzleSeed(pick.seed);
@@ -712,9 +704,9 @@ export default function SudokuPage(props) {
             setSelected({ r: 0, c: 0 });
             hasLoadedRef.current = true;
             if (!firebaseDisabled) {
-                setFirebasePresenceDebug('Firebase: Prüfung läuft...');
                 setFirebaseCheckRequested(true);
             }
+            saveLastPlayed({ mode: 'offline', difficulty: finalDifficulty, index: parsedPuzzleIndex });
 
         } else {
             loadPuzzleForMode(finalDifficulty, finalMode);
@@ -833,12 +825,17 @@ export default function SudokuPage(props) {
                 }
             }}
         >
-            <Navbar title="">
+            <Navbar>
                 <NavLeft>
-                    <Link href="/sudoku-menu/" iconF7="menu">
-                        Menü
-                    </Link>
+                    <Link href="/sudoku-menu/" iconF7="menu" aria-label="Menü" />
                 </NavLeft>
+                <NavTitle className="sudoku-title-centered">
+                    {mode === 'offline'
+                        ? `${difficultyLabel(difficulty)} #${
+                              Number.isFinite(puzzleListIndex) ? puzzleListIndex + 1 : puzzleIndex + 1
+                          }`
+                        : 'Sudoku'}
+                </NavTitle>
                 <NavRight>
                     <ProfileButton />
                 </NavRight>
@@ -860,14 +857,6 @@ export default function SudokuPage(props) {
                     Modus: {mode === 'daily' ? `Tägliches Sudoku (${getLocalDateKey()})` : 'Offline'}
                 </div>
                 <div style={{ opacity: 0.7 }}>{loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}</div>
-            </Block>
-            {saveDebug && (
-                <Block inset>
-                    {saveDebug}
-                </Block>
-            )}
-            <Block inset>
-                Es wurde folgendes Sudoku gewählt. {difficulty} {puzzleSeed} {puzzleMask}
             </Block>
 
             <Block>
@@ -898,26 +887,6 @@ export default function SudokuPage(props) {
             </Block>
 
             <Block>
-                {mode === 'offline' && (
-                    <div style={{ marginBottom: 8, fontWeight: 700 }}>
-                        Schwierigkeit: {difficulty.toUpperCase()} · Vorgaben: {countGivens(puzzle)}
-                    </div>
-                )}
-                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{localSelectionDebug}</div>
-                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{firebasePresenceDebug}</div>
-                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{stateDebug}</div>
-                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{authDebug}</div>
-                {!firebaseDisabled && (
-                    <Button
-                        outline
-                        onClick={() => {
-                            setFirebasePresenceDebug('Firebase: Prüfung läuft...');
-                            setFirebaseCheckRequested(true);
-                        }}
-                    >
-                        Firebase-Abgleich durchführen (Debug)
-                    </Button>
-                )}
                 {/* - Sudoku-Brett */}
                 <SudokuGrid
                     grid={grid}

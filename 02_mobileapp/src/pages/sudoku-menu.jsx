@@ -1,7 +1,37 @@
 import { Page, Navbar, NavRight, Block, Button, f7 } from 'framework7-react';
+import { useEffect, useState } from 'react';
 import ProfileButton from '../components/ProfileButton.jsx';
 
 export default function SudokuMenuPage() {
+    const [lastPlayed, setLastPlayed] = useState(null);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('sudokuLastPlayed');
+            setLastPlayed(raw ? JSON.parse(raw) : null);
+        } catch {
+            setLastPlayed(null);
+        }
+    }, []);
+
+    const lastPlayedLabel = (() => {
+        if (!lastPlayed) return 'Keine';
+        if (lastPlayed.mode === 'daily') return `Tägliches Sudoku (${lastPlayed.date || ''})`;
+        if (lastPlayed.mode === 'offline') {
+            const diff =
+                lastPlayed.difficulty === 'easy'
+                    ? 'Easy'
+                    : lastPlayed.difficulty === 'medium'
+                        ? 'Medium'
+                        : lastPlayed.difficulty === 'hard'
+                            ? 'Hard'
+                            : 'Sudoku';
+            const idx = Number.isFinite(lastPlayed.index) ? ` #${lastPlayed.index + 1}` : '';
+            return `${diff}${idx}`;
+        }
+        return 'Keine';
+    })();
+
     const goToSudoku = (query) => {
         // - Wechselt direkt zum Sudoku-Brett (z. B. tägliches Sudoku)
         f7.views.main?.router.navigate('/sudoku/', { query });
@@ -23,6 +53,10 @@ export default function SudokuMenuPage() {
                     <ProfileButton />
                 </NavRight>
             </Navbar>
+            <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                <div>Zuletzt bearbeitet:</div>
+                <div style={{ fontWeight: 700 }}>{lastPlayedLabel}</div>
+            </Block>
             <div
                 style={{
                     height: '100%',
