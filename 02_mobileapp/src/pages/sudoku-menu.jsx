@@ -2,10 +2,12 @@ import { Page, Navbar, Block, Button, f7 } from 'framework7-react';
 
 export default function SudokuMenuPage() {
     const goToSudoku = (query) => {
+        // - Wechselt direkt zum Sudoku-Brett (z. B. tägliches Sudoku)
         f7.views.main?.router.navigate('/sudoku/', { query });
     };
 
     const goToList = (difficulty) => {
+        // - Öffnet die Liste der Offline-Sudokus für die gewählte Schwierigkeit
         console.log('[SudokuMenu] MENU select difficulty:', difficulty);
         f7.views.main?.router.navigate(`/sudoku-list/?difficulty=${difficulty}`, {
             reloadCurrent: true,
@@ -26,6 +28,7 @@ export default function SudokuMenuPage() {
                     boxSizing: 'border-box',
                 }}
             >
+                {/* - Zentrale Auswahl für Daily / Offline */}
                 <Block
                     strong
                     inset

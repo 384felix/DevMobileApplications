@@ -422,6 +422,7 @@ export default function SudokuPage(props) {
 
     // ✅ Auth Listener
     useEffect(() => {
+        // - Hört auf Login/Logout
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
     }, []);
@@ -429,6 +430,7 @@ export default function SudokuPage(props) {
     // ✅ Doc Ref
     const saveRef = useMemo(() => {
         if (!user) return null;
+        // - Doc-ID pro Puzzle: uid_offline_<difficulty>_<index>
         const docId = buildSaveDocId(user.uid, mode, difficulty, puzzleListIndex, puzzleIndex);
         if (!docId) return null;
         return doc(db, 'sudokuSaves', docId);
@@ -459,6 +461,7 @@ export default function SudokuPage(props) {
 
     // ✅ LOAD: Save laden (falls existiert)
     useEffect(() => {
+        // - Lädt den gespeicherten Stand für dieses Puzzle (falls vorhanden)
         const routeQuery = props?.f7route?.query || {};
         const hasExplicitSelection =
             routeQuery.puzzleIndex != null || routeQuery.mode != null || routeQuery.difficulty != null;
@@ -645,6 +648,7 @@ export default function SudokuPage(props) {
 
     // Aktionen
     const loadPuzzleForMode = (diff, nextMode = mode) => {
+        // - Lädt ein neues Puzzle (lokal, ohne Firebase)
         const dateKey = getLocalDateKey();
         const nextPick =
             nextMode === 'daily' ? pickDailyPuzzleByDifficulty(diff, dateKey) : pickRandomPuzzleByDifficulty(diff);
@@ -659,6 +663,7 @@ export default function SudokuPage(props) {
     };
 
     const applySelection = (sel) => {
+        // - Wird aufgerufen, wenn du in der Liste ein Sudoku auswählst
         if (!sel) return;
         const nextMode = sel.mode === 'daily' || sel.mode === 'offline' ? sel.mode : null;
         const nextDifficulty =
@@ -730,6 +735,7 @@ export default function SudokuPage(props) {
     };
 
     useEffect(() => {
+        // - Route-Query (difficulty/puzzleIndex) kommt hier an
         const routeQuery = props?.f7route?.query || {};
         console.log('[Sudoku] route query:', routeQuery);
         applySelection(routeQuery);
@@ -836,6 +842,7 @@ export default function SudokuPage(props) {
                         Schwierigkeit: {difficulty.toUpperCase()} · Vorgaben: {countGivens(puzzle)}
                     </div>
                 )}
+                {/* - Sudoku-Brett */}
                 <SudokuGrid
                     grid={grid}
                     given={given}

@@ -33,16 +33,19 @@ export default function SudokuListPage(props) {
     const label = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
     useEffect(() => {
+        // - Merkt sich, wer eingeloggt ist (für "Gelöst"-Anzeige)
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
     }, []);
 
     useEffect(() => {
+        // - Lokaler Speicher: gelöste Sudokus pro User
         console.log('[SudokuList] user uid:', user?.uid || 'anon');
         setSolvedMap(readSolvedMap(user?.uid));
     }, [user]);
 
     useEffect(() => {
+        // - Liest die Schwierigkeit aus der URL (?difficulty=hard)
         const raw = props?.f7route?.query?.difficulty;
         const norm = normalizeDifficulty(raw);
         console.log('[SudokuList] route difficulty:', raw, '=>', norm);
@@ -59,6 +62,7 @@ export default function SudokuListPage(props) {
         <Page
             name="sudoku-list"
             onPageBeforeIn={(e) => {
+                // - Seite wird angezeigt: Status-Liste aktualisieren
                 console.log('[SudokuList] onPageBeforeIn');
                 refreshSolved();
             }}
@@ -80,6 +84,7 @@ export default function SudokuListPage(props) {
                                 link
                                 className={`sudoku-list-item ${isSolved ? 'solved' : 'open'}`}
                                 onClick={(e) => {
+                                    // - Auswahl eines konkreten Sudokus (Index 0..9)
                                     console.log('[SudokuList] click puzzle', { difficulty, idx });
                                     if (e?.preventDefault) e.preventDefault();
                                     try {
