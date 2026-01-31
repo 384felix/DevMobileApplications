@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Page, Navbar, Block, List, ListItem, f7 } from 'framework7-react';
+import { Page, Navbar, NavRight, Block, List, ListItem, f7 } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../js/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../js/firebase';
 import './sudoku-list.css';
+import ProfileButton from '../components/ProfileButton.jsx';
 
 function getSolvedStorageKey(uid) {
     return `sudokuSolved_v1:${uid || 'anon'}`;
@@ -27,6 +29,7 @@ function normalizeDifficulty(diff) {
 export default function SudokuListPage(props) {
     const [user, setUser] = useState(null);
     const [solvedMap, setSolvedMap] = useState({});
+    const [solvedSummary, setSolvedSummary] = useState({});
     const [difficulty, setDifficulty] = useState(
         normalizeDifficulty(props?.f7route?.query?.difficulty)
     );
@@ -43,6 +46,39 @@ export default function SudokuListPage(props) {
         console.log('[SudokuList] user uid:', user?.uid || 'anon');
         setSolvedMap(readSolvedMap(user?.uid));
     }, [user]);
+
+    useEffect(() => {
+        const fetchSummary = async () => {
+            if (!user) {
+                setSolvedSummary({});
+                return;
+            }
+            try {
+                const summaryRef = doc(db, 'users', user.uid, 'sudokuProgress', 'summary');
+                const snap = await getDoc(summaryRef);
+                setSolvedSummary(snap.exists() ? snap.data()?.offline || {} : {});
+            } catch (e) {
+                console.error('Failed to load summary', e);
+                setSolvedSummary({});
+            }
+        };
+        fetchSummary();
+    }, [user]);
+
+    const refreshSummary = async () => {
+        if (!user) {
+            setSolvedSummary({});
+            return;
+        }
+        try {
+            const summaryRef = doc(db, 'users', user.uid, 'sudokuProgress', 'summary');
+            const snap = await getDoc(summaryRef);
+            setSolvedSummary(snap.exists() ? snap.data()?.offline || {} : {});
+        } catch (e) {
+            console.error('Failed to load summary', e);
+            setSolvedSummary({});
+        }
+    };
 
     useEffect(() => {
         // - Liest die Schwierigkeit aus der URL (?difficulty=hard)
@@ -65,13 +101,19 @@ export default function SudokuListPage(props) {
                 // - Seite wird angezeigt: Status-Liste aktualisieren
                 console.log('[SudokuList] onPageBeforeIn');
                 refreshSolved();
+                refreshSummary();
             }}
         >
-            <Navbar title={`Sudokus ${label}`} backLink="Zurück" />
+            <Navbar title={`Sudokus ${label}`} backLink="Zurück">
+                <NavRight>
+                    <ProfileButton />
+                </NavRight>
+            </Navbar>
             <Block strong inset>
                 <List inset>
                     {items.map((idx) => {
-                        const isSolved = !!solvedMap[`${difficulty}:${idx}`];
+                        const solvedByFirebase = !!solvedSummary?.[difficulty]?.[String(idx)];
+                        const isSolved = user ? solvedByFirebase : !!solvedMap[`${difficulty}:${idx}`];
                         return (
                             <ListItem
                                 key={`${difficulty}-${idx}`}

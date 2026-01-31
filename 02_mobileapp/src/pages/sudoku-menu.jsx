@@ -1,4 +1,5 @@
-import { Page, Navbar, Block, Button, f7 } from 'framework7-react';
+import { Page, Navbar, NavRight, Block, Button, f7 } from 'framework7-react';
+import ProfileButton from '../components/ProfileButton.jsx';
 
 export default function SudokuMenuPage() {
     const goToSudoku = (query) => {
@@ -17,7 +18,11 @@ export default function SudokuMenuPage() {
 
     return (
         <Page name="sudoku-menu">
-            <Navbar title="Sudoku Menü" />
+            <Navbar title="Sudoku Menü">
+                <NavRight>
+                    <ProfileButton />
+                </NavRight>
+            </Navbar>
             <div
                 style={{
                     height: '100%',

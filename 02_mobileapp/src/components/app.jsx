@@ -24,6 +24,8 @@ import {
 
 import routes from '../js/routes';
 import store from '../js/store';
+import { auth } from '../js/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const MyApp = () => {
   const [username, setUsername] = useState('');
@@ -54,6 +56,16 @@ const MyApp = () => {
     f7ready(() => {
       f7.setDarkMode(darkMode);
     });
+  }, []);
+
+  // ✅ Nach Login/Logout immer zurück ins Sudoku-Menü
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, () => {
+      f7ready(() => {
+        f7.views.main?.router.navigate('/sudoku-menu/', { reloadCurrent: true, ignoreCache: true });
+      });
+    });
+    return () => unsub();
   }, []);
 
   // ✅ Bei Änderung Dark Mode sofort anwenden + speichern
@@ -124,7 +136,7 @@ const MyApp = () => {
           />
         </Toolbar>
 
-        <View id="view-sudoku" main tab tabActive url="/sudoku/" />
+        <View id="view-sudoku" main tab tabActive url="/sudoku-menu/" />
         <View id="view-friends" tab url="/friends/" />
         <View id="view-leaderboard" tab url="/leaderboard/" />
       </Views>

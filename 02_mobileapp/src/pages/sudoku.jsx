@@ -365,6 +365,8 @@ function isSolvedGrid(grid) {
 
 // =========================
 export default function SudokuPage(props) {
+    // - Debug: Firebase komplett deaktivieren (nur lokal arbeiten)
+    const firebaseDisabled = false;
     // ✅ Auth / Save
     const [user, setUser] = useState(null);
     const [loadingSave, setLoadingSave] = useState(false);
@@ -372,6 +374,11 @@ export default function SudokuPage(props) {
     const [mode, setMode] = useState('offline');
     const selectionOverrideRef = useRef(false);
     const [saveDebug, setSaveDebug] = useState('');
+    const [localSelectionDebug, setLocalSelectionDebug] = useState('Auswahl: -');
+    const [firebasePresenceDebug, setFirebasePresenceDebug] = useState('Firebase: -');
+    const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
+    const [stateDebug, setStateDebug] = useState('State: -');
+    const [authDebug, setAuthDebug] = useState('Auth: -');
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
@@ -429,128 +436,112 @@ export default function SudokuPage(props) {
 
     // ✅ Doc Ref
     const saveRef = useMemo(() => {
+        if (firebaseDisabled) return null;
         if (!user) return null;
         // - Doc-ID pro Puzzle: uid_offline_<difficulty>_<index>
         const docId = buildSaveDocId(user.uid, mode, difficulty, puzzleListIndex, puzzleIndex);
         if (!docId) return null;
         return doc(db, 'sudokuSaves', docId);
-    }, [user, mode, difficulty, puzzleListIndex, puzzleIndex]);
+    }, [firebaseDisabled, user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
-    // ✅ Wenn User wechselt oder Logout: lokale Anzeige NICHT vom vorherigen User behalten
-    useEffect(() => {
-        const currentUid = user?.uid ?? null;
+    const fetchFromFirebase = async () => {
+        if (firebaseDisabled) {
+            setFirebasePresenceDebug('Firebase: deaktiviert (Debug)');
+            setFirebaseCheckRequested(false);
+            return;
+        }
+        if (!saveRef) {
+            setFirebasePresenceDebug('Firebase: Nein, es liegen keine Firebase-Daten ab.');
+            return;
+        }
+        setLoadingSave(true);
+        try {
+            const snap = await getDoc(saveRef);
 
-        if (lastUidRef.current !== currentUid) {
-            lastUidRef.current = currentUid;
-            hasLoadedRef.current = false;
+            if (!snap.exists()) {
+                setFirebasePresenceDebug('Firebase: Nein, es liegen keine Firebase-Daten ab.');
+                return;
+            }
 
-            setMode('offline');
-            setDifficulty('easy');
-            const freshPick = pickRandomPuzzleByDifficulty('easy');
-            setPuzzle(freshPick.puzzle);
-            setPuzzleIndex(freshPick.poolIndex);
-            setPuzzleSeed(freshPick.seed);
-            setPuzzleMask(freshPick.mask);
+            const data = snap.data();
+            setFirebasePresenceDebug('Firebase: Ja, es liegen Firebase-Daten ab.');
+
+            const loadedMode = data.mode === 'daily' ? 'daily' : 'offline';
+            const loadedDifficulty = data.difficulty || 'easy';
+            const fallbackPick =
+                loadedMode === 'daily'
+                    ? pickDailyPuzzleByDifficulty(loadedDifficulty, getLocalDateKey())
+                    : pickRandomPuzzleByDifficulty(loadedDifficulty);
+            const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
+            const seedMaskPick = hasSeedMask
+                ? {
+                    puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
+                    seed: data.puzzleSeed,
+                    mask: data.puzzleMask,
+                }
+                : null;
+            const loadedPuzzle =
+                stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
+            const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
+            const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex)
+                ? data.puzzleIndex
+                : fallbackPick.poolIndex;
+
+            console.log('[Sudoku] loaded save:', {
+                loadedMode,
+                loadedDifficulty,
+                loadedPuzzleIndex,
+                givens: countGivens(loadedPuzzle),
+                seed: seedMaskPick?.seed || fallbackPick.seed,
+            });
+
+            setMode(loadedMode);
+            setDifficulty(loadedDifficulty);
+            setPuzzle(loadedPuzzle);
+            setPuzzleIndex(loadedPuzzleIndex);
+            setPuzzleSeed(seedMaskPick?.seed || fallbackPick.seed);
+            setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
             setPuzzleListIndex(null);
-            setGrid(clone9(freshPick.puzzle));
-            setHelpEnabled(true);
-            setSolved(false);
-            setSelected({ r: 0, c: 0 });
+            setGrid(loadedGrid);
+            setSaveDebug(
+                `Firebase geladen: ${loadedMode} ${loadedDifficulty} idx ${loadedPuzzleIndex} givens ${countGivens(
+                    loadedPuzzle
+                )}`
+            );
+
+            setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
+            setSolved(!!data.solved);
+            setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
+        } catch (e) {
+            console.error('Failed to load sudoku save', e);
+            f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Sudoku Load Error');
+        } finally {
+            setLoadingSave(false);
+            setFirebaseCheckRequested(false);
+        }
+    };
+
+    // ✅ Auth-Status beeinflusst keine Sudoku-Auswahl
+    useEffect(() => {
+        if (!user) {
+            setAuthDebug('Auth: nicht eingeloggt');
+        } else {
+            setAuthDebug(`Auth: eingeloggt (${user.uid})`);
         }
     }, [user]);
 
-    // ✅ LOAD: Save laden (falls existiert)
+    // ✅ Firebase-Load nur per Button
     useEffect(() => {
-        // - Lädt den gespeicherten Stand für dieses Puzzle (falls vorhanden)
-        const routeQuery = props?.f7route?.query || {};
-        const hasExplicitSelection =
-            routeQuery.puzzleIndex != null || routeQuery.mode != null || routeQuery.difficulty != null;
-        const hasPendingSelection = !!readPendingSelection();
-
-        if (selectionOverrideRef.current || hasExplicitSelection || hasPendingSelection) {
-            // Auswahl soll nicht vom alten Save überschrieben werden
-            selectionOverrideRef.current = false;
-            hasLoadedRef.current = true;
-            return;
-        }
-
-        if (!saveRef) {
-            hasLoadedRef.current = false;
-            return;
-        }
-
-        (async () => {
-            setLoadingSave(true);
-            try {
-                const snap = await getDoc(saveRef);
-
-                if (!snap.exists()) {
-                    hasLoadedRef.current = true;
-                    return;
-                }
-
-                const data = snap.data();
-
-                const loadedMode = data.mode === 'daily' ? 'daily' : 'offline';
-                const loadedDifficulty = data.difficulty || 'easy';
-                const fallbackPick =
-                    loadedMode === 'daily'
-                        ? pickDailyPuzzleByDifficulty(loadedDifficulty, getLocalDateKey())
-                        : pickRandomPuzzleByDifficulty(loadedDifficulty);
-                const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
-                const seedMaskPick = hasSeedMask
-                    ? {
-                        puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
-                        seed: data.puzzleSeed,
-                        mask: data.puzzleMask,
-                    }
-                    : null;
-                const loadedPuzzle =
-                    stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
-                const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
-                const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex)
-                    ? data.puzzleIndex
-                    : fallbackPick.poolIndex;
-
-                console.log('[Sudoku] loaded save:', {
-                    loadedMode,
-                    loadedDifficulty,
-                    loadedPuzzleIndex,
-                    givens: countGivens(loadedPuzzle),
-                    seed: seedMaskPick?.seed || fallbackPick.seed,
-                });
-
-                setMode(loadedMode);
-                setDifficulty(loadedDifficulty);
-                setPuzzle(loadedPuzzle);
-                setPuzzleIndex(loadedPuzzleIndex);
-                setPuzzleSeed(seedMaskPick?.seed || fallbackPick.seed);
-                setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
-                setPuzzleListIndex(null);
-                setGrid(loadedGrid);
-                setSaveDebug(
-                    `Firebase geladen: ${loadedMode} ${loadedDifficulty} idx ${loadedPuzzleIndex} givens ${countGivens(
-                        loadedPuzzle
-                    )}`
-                );
-
-                setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
-                setSolved(!!data.solved);
-                setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
-
-                hasLoadedRef.current = true;
-            } catch (e) {
-                console.error('Failed to load sudoku save', e);
-                f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Sudoku Load Error');
-                hasLoadedRef.current = true;
-            } finally {
-                setLoadingSave(false);
-            }
-        })();
-    }, [saveRef]);
+        if (!firebaseCheckRequested) return;
+        fetchFromFirebase();
+    }, [firebaseCheckRequested, saveRef]);
 
     // ✅ Manueller Save Button (Firestore-safe)
     const manualSave = async () => {
+        if (firebaseDisabled) {
+            f7.toast.create({ text: 'Firebase deaktiviert (Debug)', closeTimeout: 1500 }).open();
+            return;
+        }
         if (!user) {
             f7.dialog.alert('Bitte zuerst einloggen, um zu speichern.');
             return;
@@ -592,6 +583,7 @@ export default function SudokuPage(props) {
     // ✅ Auto-Save debounced – ebenfalls Firestore-safe
     const saveTimer = useRef(null);
     useEffect(() => {
+        if (firebaseDisabled) return;
         if (!saveRef) return;
         if (!hasLoadedRef.current) return;
 
@@ -625,7 +617,7 @@ export default function SudokuPage(props) {
         return () => {
             if (saveTimer.current) clearTimeout(saveTimer.current);
         };
-    }, [saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
+    }, [firebaseDisabled, saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
 
     // Keyboard
     useEffect(() => {
@@ -660,6 +652,7 @@ export default function SudokuPage(props) {
         setSolved(false);
         setGrid(clone9(nextPick.puzzle));
         setSelected({ r: 0, c: 0 });
+        hasLoadedRef.current = true;
     };
 
     const applySelection = (sel) => {
@@ -676,6 +669,9 @@ export default function SudokuPage(props) {
         if (!nextMode && !nextDifficulty && !hasPuzzleIndex) return;
 
         selectionOverrideRef.current = true;
+        setStateDebug(
+            `State: Auswahl gesetzt (${nextDifficulty || difficulty} / idx ${Number.isFinite(parsedPuzzleIndex) ? parsedPuzzleIndex : '-'})`
+        );
 
         console.log('[Sudoku] applySelection:', {
             nextMode,
@@ -700,6 +696,7 @@ export default function SudokuPage(props) {
                 givens: countGivens(pick.puzzle),
                 seed: pick.seed,
             });
+            setLocalSelectionDebug(`Auswahl: ${finalDifficulty} idx ${parsedPuzzleIndex}`);
             setPuzzle(pick.puzzle);
             setPuzzleIndex(pick.poolIndex);
             setPuzzleSeed(pick.seed);
@@ -708,6 +705,11 @@ export default function SudokuPage(props) {
             setSolved(false);
             setGrid(clone9(pick.puzzle));
             setSelected({ r: 0, c: 0 });
+            hasLoadedRef.current = true;
+            if (!firebaseDisabled) {
+                setFirebasePresenceDebug('Firebase: Prüfung läuft...');
+                setFirebaseCheckRequested(true);
+            }
 
         } else {
             loadPuzzleForMode(finalDifficulty, finalMode);
@@ -741,13 +743,59 @@ export default function SudokuPage(props) {
         applySelection(routeQuery);
     }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
-    const checkSolution = () => {
+    const checkSolution = async () => {
         const ok = isSolvedGrid(grid);
         if (ok) {
             setSolved(true);
+            // - Beim Lösen sofort speichern (aktueller Stand)
+            if (user && saveRef) {
+                try {
+                    await setDoc(
+                        saveRef,
+                        {
+                            uid: user.uid,
+                            updatedAt: serverTimestamp(),
+                            mode,
+                            difficulty,
+                            puzzleIndex,
+                            puzzleSeed,
+                            puzzleMask,
+                            puzzleStr: gridToString(puzzle),
+                            gridStr: gridToString(grid),
+                            helpEnabled,
+                            solved: true,
+                            selected,
+                        },
+                        { merge: true }
+                    );
+                    f7.toast.create({ text: 'Gelöst & gespeichert ✅', closeTimeout: 1500 }).open();
+                } catch (e) {
+                    console.error('Save on solve failed', e);
+                    f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Speichern fehlgeschlagen');
+                }
+            }
             if (mode === 'offline') {
-                if (Number.isFinite(puzzleListIndex)) {
-                    markSolved(user?.uid, difficulty, puzzleListIndex);
+                const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+                if (Number.isFinite(idx)) {
+                    markSolved(user?.uid, difficulty, idx);
+                    if (user) {
+                        try {
+                            const summaryRef = doc(db, 'users', user.uid, 'sudokuProgress', 'summary');
+                            await setDoc(
+                                summaryRef,
+                                {
+                                    offline: {
+                                        [difficulty]: {
+                                            [String(idx)]: true,
+                                        },
+                                    },
+                                },
+                                { merge: true }
+                            );
+                        } catch (e) {
+                            console.error('Failed to update summary', e);
+                        }
+                    }
                 }
             }
             f7.dialog.alert('Glückwunsch! Sudoku ist korrekt gelöst ✅');
@@ -841,6 +889,21 @@ export default function SudokuPage(props) {
                     <div style={{ marginBottom: 8, fontWeight: 700 }}>
                         Schwierigkeit: {difficulty.toUpperCase()} · Vorgaben: {countGivens(puzzle)}
                     </div>
+                )}
+                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{localSelectionDebug}</div>
+                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{firebasePresenceDebug}</div>
+                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{stateDebug}</div>
+                <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.7 }}>{authDebug}</div>
+                {!firebaseDisabled && (
+                    <Button
+                        outline
+                        onClick={() => {
+                            setFirebasePresenceDebug('Firebase: Prüfung läuft...');
+                            setFirebaseCheckRequested(true);
+                        }}
+                    >
+                        Firebase-Abgleich durchführen (Debug)
+                    </Button>
                 )}
                 {/* - Sudoku-Brett */}
                 <SudokuGrid
