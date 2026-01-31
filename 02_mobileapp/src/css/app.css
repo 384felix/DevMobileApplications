@@ -34,3 +34,22 @@
     border-radius: 999px !important;
     background: var(--f7-color-green) !important;
 }
+
+/* Freunde-Tab: Badge als heller Punkt am Icon */
+.tabbar .link.friends-tab {
+    position: relative;
+}
+
+.tabbar .link.friends-tab .badge {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 8px);
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    padding: 0;
+    border-radius: 999px;
+    background: #fca5a5;
+    font-size: 0;
+    box-shadow: 0 0 0 2px var(--f7-toolbar-bg-color);
+}

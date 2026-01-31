@@ -24,12 +24,14 @@ import {
 
 import routes from '../js/routes';
 import store from '../js/store';
-import { auth } from '../js/firebase';
+import { auth, db } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 const MyApp = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [incomingCount, setIncomingCount] = useState(0);
 
   // ✅ Dark Mode State (persistiert)
   const [darkMode, setDarkMode] = useState(() => {
@@ -66,6 +68,29 @@ const MyApp = () => {
       });
     });
     return () => unsub();
+  }, []);
+
+  // ✅ Roter Punkt bei neuen Freundschaftsanfragen
+  useEffect(() => {
+    let unsub = null;
+    const offAuth = onAuthStateChanged(auth, (u) => {
+      if (unsub) {
+        unsub();
+        unsub = null;
+      }
+      setIncomingCount(0);
+      if (!u) return;
+      const q = query(
+        collection(db, 'friendRequests'),
+        where('toUid', '==', u.uid),
+        where('status', '==', 'pending')
+      );
+      unsub = onSnapshot(q, (snap) => setIncomingCount(snap.size));
+    });
+    return () => {
+      if (unsub) unsub();
+      offAuth();
+    };
   }, []);
 
   // ✅ Bei Änderung Dark Mode sofort anwenden + speichern
@@ -127,6 +152,9 @@ const MyApp = () => {
             iconIos="f7:person_2"
             iconMd="material:people"
             text="Freunde"
+            className="friends-tab"
+            badge={incomingCount > 0 ? ' ' : ''}
+            badgeColor="red"
           />
           <Link
             tabLink="#view-leaderboard"

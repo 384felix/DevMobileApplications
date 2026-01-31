@@ -404,6 +404,8 @@ export default function FriendsPage({ f7router }) {
     };
 
     const removeFriend = async (friendDoc) => {
+        const ok = await f7.dialog.confirm('Möchtest du diesen Freund wirklich entfernen?', 'Freund entfernen?');
+        if (!ok) return;
         try {
             await deleteDoc(doc(db, 'friends', friendDoc.id));
             f7.toast.create({ text: 'Freund entfernt', closeTimeout: 1200 }).open();

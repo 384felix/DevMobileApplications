@@ -14,6 +14,7 @@ import {
 } from 'framework7-react';
 import SudokuGrid from '../components/SudokuGrid.jsx';
 import ProfileButton from '../components/ProfileButton.jsx';
+import puzzles from '../../tools/puzzles.json';
 
 // ✅ Firebase
 import { auth, db } from '../js/firebase';
@@ -122,23 +123,10 @@ function buildPuzzleFromSeedAndMask(seed, mask) {
 }
 
 // =========================
-// Easy / Medium / Hard (je 10, deterministisch aus Basis)
-const EASY_SEEDS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'E10'];
-const MEDIUM_SEEDS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'];
-const HARD_SEEDS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9', 'H10'];
-
-const EASY_PUZZLES = EASY_SEEDS.map((seed, i) => ({
-    seed,
-    mask: makeMask(`${seed}-mask-${i}`, 42),
-}));
-const MEDIUM_PUZZLES = MEDIUM_SEEDS.map((seed, i) => ({
-    seed,
-    mask: makeMask(`${seed}-mask-${i}`, 38),
-}));
-const HARD_PUZZLES = HARD_SEEDS.map((seed, i) => ({
-    seed,
-    mask: makeMask(`${seed}-mask-${i}`, 24),
-}));
+// Easy / Medium / Hard (je 10, aus tools/puzzles.json)
+const EASY_PUZZLES = (puzzles?.easy || []).map((p) => ({ seed: p.seed, mask: p.mask }));
+const MEDIUM_PUZZLES = (puzzles?.medium || []).map((p) => ({ seed: p.seed, mask: p.mask }));
+const HARD_PUZZLES = (puzzles?.hard || []).map((p) => ({ seed: p.seed, mask: p.mask }));
 
 // -------------------------
 const clone9 = (g) => g.map((row) => row.slice());

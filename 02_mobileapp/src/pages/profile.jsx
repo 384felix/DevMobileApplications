@@ -29,6 +29,8 @@ const ProfilePage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regUsernameStatus, setRegUsernameStatus] = useState('idle'); // idle|checking|available|taken|invalid
 
   // User
   const [user, setUser] = useState(null);
@@ -171,7 +173,53 @@ const ProfilePage = () => {
     }
   };
 
+  const normalizeUsername = (raw) => (raw || '').trim().toLowerCase();
+
+  // Live Username-Check beim Registrieren
+  useEffect(() => {
+    if (mode !== 'register') return;
+    const usernameLower = normalizeUsername(regUsername);
+
+    if (!usernameLower) {
+      setRegUsernameStatus('idle');
+      return;
+    }
+
+    if (!/^[a-z0-9._]{3,20}$/.test(usernameLower)) {
+      setRegUsernameStatus('invalid');
+      return;
+    }
+
+    let cancelled = false;
+    setRegUsernameStatus('checking');
+
+    const t = setTimeout(async () => {
+      try {
+        const unameRef = doc(db, 'usernames', usernameLower);
+        const snap = await getDoc(unameRef);
+        if (cancelled) return;
+        setRegUsernameStatus(snap.exists() ? 'taken' : 'available');
+      } catch (e) {
+        if (!cancelled) setRegUsernameStatus('idle');
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mode, regUsername]);
+
   const handleRegister = async () => {
+    const usernameLower = normalizeUsername(regUsername);
+    if (!usernameLower) {
+      f7.dialog.alert('Bitte einen Username eingeben.');
+      return;
+    }
+    if (!/^[a-z0-9._]{3,20}$/.test(usernameLower)) {
+      f7.dialog.alert('Username muss 3–20 Zeichen haben und darf nur a-z, 0-9, . oder _ enthalten.');
+      return;
+    }
     if (!email.trim() || !password.trim()) {
       f7.dialog.alert('Bitte E-Mail und Passwort eingeben.');
       return;
@@ -185,23 +233,53 @@ const ProfilePage = () => {
       return;
     }
     try {
+      // 1) Vorab prüfen, ob Username frei ist (kein User anlegen, wenn belegt)
+      const precheckRef = doc(db, 'usernames', usernameLower);
+      const precheckSnap = await getDoc(precheckRef);
+      if (precheckSnap.exists()) {
+        f7.dialog.alert('Dieser Username ist leider schon vergeben. Bitte wähle einen anderen.');
+        return;
+      }
+
+      // 2) User anlegen, danach Username reservieren (Transaktion)
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      await setDoc(
-        doc(db, 'users', cred.user.uid),
-        {
-          email: cred.user.email || '',
-          username: '',
-          usernameLower: '',
-          avatarUrl: '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const userRef = doc(db, 'users', cred.user.uid);
+      const unameRef = doc(db, 'usernames', usernameLower);
+
+      await runTransaction(db, async (tx) => {
+        const unameSnap = await tx.get(unameRef);
+        if (unameSnap.exists()) {
+          throw new Error('USERNAME_TAKEN');
+        }
+        tx.set(unameRef, { uid: cred.user.uid, createdAt: serverTimestamp() }, { merge: true });
+        tx.set(
+          userRef,
+          {
+            email: cred.user.email || '',
+            username: regUsername.trim(),
+            usernameLower,
+            avatarUrl: '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      });
       f7.toast.create({ text: 'Registrierung erfolgreich ✅', closeTimeout: 1800 }).open();
       setMode('login');
       setPassword2('');
+      setRegUsername('');
     } catch (err) {
+      if ((err?.message || '').includes('USERNAME_TAKEN')) {
+        // User wieder löschen, falls zwischenzeitlich vergeben wurde
+        try {
+          if (auth.currentUser) await auth.currentUser.delete();
+        } catch (e) {
+          console.error('Failed to delete user after username taken', e);
+        }
+        f7.dialog.alert('Dieser Username ist leider schon vergeben. Bitte wähle einen anderen.');
+        return;
+      }
       f7.dialog.alert(err.message, 'Registrierung fehlgeschlagen');
     }
   };
@@ -338,6 +416,16 @@ const ProfilePage = () => {
               onInput={(e) => setEmail(e.target.value)}
               clearButton
             />
+            {mode === 'register' && (
+              <ListInput
+                label="Username *"
+                type="text"
+                placeholder="z.B. flizzmaster"
+                value={regUsername}
+                onInput={(e) => setRegUsername(e.target.value)}
+                clearButton
+              />
+            )}
             <ListInput
               label="Passwort"
               type="password"
@@ -359,6 +447,16 @@ const ProfilePage = () => {
           </List>
 
           <Block>
+            {mode === 'register' && (
+              <div style={{ marginBottom: 8, opacity: 0.7, fontSize: 13 }}>
+                {regUsernameStatus === 'idle' && 'Bitte Username eingeben.'}
+                {regUsernameStatus === 'checking' && 'Username wird geprüft…'}
+                {regUsernameStatus === 'available' && 'Username ist frei ✅'}
+                {regUsernameStatus === 'taken' && 'Username ist vergeben ❌'}
+                {regUsernameStatus === 'invalid' &&
+                  'Username: 3–20 Zeichen, nur a-z, 0-9, . oder _'}
+              </div>
+            )}
             {mode === 'login' ? (
               <ListButton title="Einloggen" onClick={handleLogin} />
             ) : (
