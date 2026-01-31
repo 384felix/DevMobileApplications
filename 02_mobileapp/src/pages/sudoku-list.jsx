@@ -38,11 +38,15 @@ export default function SudokuListPage(props) {
     }, []);
 
     useEffect(() => {
+        console.log('[SudokuList] user uid:', user?.uid || 'anon');
         setSolvedMap(readSolvedMap(user?.uid));
     }, [user]);
 
     useEffect(() => {
-        setDifficulty(normalizeDifficulty(props?.f7route?.query?.difficulty));
+        const raw = props?.f7route?.query?.difficulty;
+        const norm = normalizeDifficulty(raw);
+        console.log('[SudokuList] route difficulty:', raw, '=>', norm);
+        setDifficulty(norm);
     }, [props?.f7route?.query?.difficulty]);
 
     const refreshSolved = () => {
@@ -55,8 +59,7 @@ export default function SudokuListPage(props) {
         <Page
             name="sudoku-list"
             onPageBeforeIn={(e) => {
-                const nextDiff = normalizeDifficulty(e?.detail?.route?.query?.difficulty);
-                setDifficulty(nextDiff);
+                console.log('[SudokuList] onPageBeforeIn');
                 refreshSolved();
             }}
         >
@@ -77,6 +80,7 @@ export default function SudokuListPage(props) {
                                 link
                                 className={`sudoku-list-item ${isSolved ? 'solved' : 'open'}`}
                                 onClick={(e) => {
+                                    console.log('[SudokuList] click puzzle', { difficulty, idx });
                                     if (e?.preventDefault) e.preventDefault();
                                     try {
                                         sessionStorage.setItem(

@@ -236,6 +236,28 @@ function markSolved(uid, diff, poolIndex) {
     writeSolvedMap(uid, map);
 }
 
+function countGivens(grid) {
+    let n = 0;
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (grid[r][c] !== 0) n++;
+        }
+    }
+    return n;
+}
+
+function buildSaveDocId(uid, mode, difficulty, puzzleListIndex, puzzleIndex) {
+    if (!uid) return null;
+    if (mode === 'daily') {
+        const dateKey = getLocalDateKey();
+        return `${uid}_daily_${dateKey}`;
+    }
+    if (mode !== 'offline') return null;
+    const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+    if (!Number.isFinite(idx)) return null;
+    return `${uid}_offline_${difficulty}_${idx}`;
+}
+
 function readPendingSelection() {
     try {
         const raw = sessionStorage.getItem('sudokuSelection');
@@ -349,6 +371,7 @@ export default function SudokuPage(props) {
     const [savingNow, setSavingNow] = useState(false);
     const [mode, setMode] = useState('offline');
     const selectionOverrideRef = useRef(false);
+    const [saveDebug, setSaveDebug] = useState('');
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
@@ -406,33 +429,10 @@ export default function SudokuPage(props) {
     // ✅ Doc Ref
     const saveRef = useMemo(() => {
         if (!user) return null;
-        return doc(db, 'sudokuSaves', user.uid);
-    }, [user]);
-
-    const persistSelection = async ({ nextMode, nextDifficulty, nextIndex, nextSeed, nextMask, nextPuzzle }) => {
-        if (!user || !saveRef) return;
-        try {
-            await setDoc(
-                saveRef,
-                {
-                    uid: user.uid,
-                    updatedAt: serverTimestamp(),
-                    mode: nextMode,
-                    difficulty: nextDifficulty,
-                    puzzleIndex: nextIndex,
-                    puzzleSeed: nextSeed,
-                    puzzleMask: nextMask,
-                    puzzleStr: gridToString(nextPuzzle),
-                    gridStr: gridToString(nextPuzzle),
-                    solved: false,
-                    selected: { r: 0, c: 0 },
-                },
-                { merge: true }
-            );
-        } catch (e) {
-            console.error('Failed to persist selection', e);
-        }
-    };
+        const docId = buildSaveDocId(user.uid, mode, difficulty, puzzleListIndex, puzzleIndex);
+        if (!docId) return null;
+        return doc(db, 'sudokuSaves', docId);
+    }, [user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
     // ✅ Wenn User wechselt oder Logout: lokale Anzeige NICHT vom vorherigen User behalten
     useEffect(() => {
@@ -465,7 +465,7 @@ export default function SudokuPage(props) {
         const hasPendingSelection = !!readPendingSelection();
 
         if (selectionOverrideRef.current || hasExplicitSelection || hasPendingSelection) {
-            // URL-Auswahl soll nicht direkt vom gespeicherten Spiel überschrieben werden
+            // Auswahl soll nicht vom alten Save überschrieben werden
             selectionOverrideRef.current = false;
             hasLoadedRef.current = true;
             return;
@@ -497,10 +497,10 @@ export default function SudokuPage(props) {
                 const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
                 const seedMaskPick = hasSeedMask
                     ? {
-                          puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
-                          seed: data.puzzleSeed,
-                          mask: data.puzzleMask,
-                      }
+                        puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
+                        seed: data.puzzleSeed,
+                        mask: data.puzzleMask,
+                    }
                     : null;
                 const loadedPuzzle =
                     stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
@@ -508,6 +508,14 @@ export default function SudokuPage(props) {
                 const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex)
                     ? data.puzzleIndex
                     : fallbackPick.poolIndex;
+
+                console.log('[Sudoku] loaded save:', {
+                    loadedMode,
+                    loadedDifficulty,
+                    loadedPuzzleIndex,
+                    givens: countGivens(loadedPuzzle),
+                    seed: seedMaskPick?.seed || fallbackPick.seed,
+                });
 
                 setMode(loadedMode);
                 setDifficulty(loadedDifficulty);
@@ -517,6 +525,11 @@ export default function SudokuPage(props) {
                 setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
                 setPuzzleListIndex(null);
                 setGrid(loadedGrid);
+                setSaveDebug(
+                    `Firebase geladen: ${loadedMode} ${loadedDifficulty} idx ${loadedPuzzleIndex} givens ${countGivens(
+                        loadedPuzzle
+                    )}`
+                );
 
                 setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
                 setSolved(!!data.solved);
@@ -659,6 +672,15 @@ export default function SudokuPage(props) {
 
         selectionOverrideRef.current = true;
 
+        console.log('[Sudoku] applySelection:', {
+            nextMode,
+            nextDifficulty,
+            parsedPuzzleIndex,
+            hasPuzzleIndex,
+            mode,
+            difficulty,
+        });
+
         const finalMode = nextMode || mode;
         const finalDifficulty = nextDifficulty || difficulty;
 
@@ -667,6 +689,12 @@ export default function SudokuPage(props) {
 
         if (hasPuzzleIndex) {
             const pick = pickPuzzleByIndex(finalDifficulty, parsedPuzzleIndex);
+            console.log('[Sudoku] selected puzzle:', {
+                difficulty: finalDifficulty,
+                index: parsedPuzzleIndex,
+                givens: countGivens(pick.puzzle),
+                seed: pick.seed,
+            });
             setPuzzle(pick.puzzle);
             setPuzzleIndex(pick.poolIndex);
             setPuzzleSeed(pick.seed);
@@ -676,14 +704,6 @@ export default function SudokuPage(props) {
             setGrid(clone9(pick.puzzle));
             setSelected({ r: 0, c: 0 });
 
-            persistSelection({
-                nextMode: finalMode,
-                nextDifficulty: finalDifficulty,
-                nextIndex: parsedPuzzleIndex,
-                nextSeed: pick.seed,
-                nextMask: pick.mask,
-                nextPuzzle: pick.puzzle,
-            });
         } else {
             loadPuzzleForMode(finalDifficulty, finalMode);
         }
@@ -711,6 +731,7 @@ export default function SudokuPage(props) {
 
     useEffect(() => {
         const routeQuery = props?.f7route?.query || {};
+        console.log('[Sudoku] route query:', routeQuery);
         applySelection(routeQuery);
     }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
@@ -773,6 +794,11 @@ export default function SudokuPage(props) {
                 </div>
                 <div style={{ opacity: 0.7 }}>{loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}</div>
             </Block>
+            {saveDebug && (
+                <Block inset>
+                    {saveDebug}
+                </Block>
+            )}
             <Block inset>
                 Es wurde folgendes Sudoku gewählt. {difficulty} {puzzleSeed} {puzzleMask}
             </Block>
@@ -807,7 +833,7 @@ export default function SudokuPage(props) {
             <Block>
                 {mode === 'offline' && (
                     <div style={{ marginBottom: 8, fontWeight: 700 }}>
-                        Schwierigkeit: {difficulty.toUpperCase()}
+                        Schwierigkeit: {difficulty.toUpperCase()} · Vorgaben: {countGivens(puzzle)}
                     </div>
                 )}
                 <SudokuGrid

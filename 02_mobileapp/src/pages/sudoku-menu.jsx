@@ -6,6 +6,7 @@ export default function SudokuMenuPage() {
     };
 
     const goToList = (difficulty) => {
+        console.log('[SudokuMenu] MENU select difficulty:', difficulty);
         f7.views.main?.router.navigate(`/sudoku-list/?difficulty=${difficulty}`, {
             reloadCurrent: true,
             ignoreCache: true,
