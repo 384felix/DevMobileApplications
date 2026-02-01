@@ -262,6 +262,20 @@ function buildSaveDocId(uid, mode, difficulty, puzzleListIndex, puzzleIndex) {
     return `${uid}_offline_${difficulty}_${idx}`;
 }
 
+function readCachedSave(uid, difficulty, puzzleIndex) {
+    if (!uid) return null;
+    if (!Number.isFinite(puzzleIndex)) return null;
+    try {
+        const raw = localStorage.getItem(`sudokuSavesCache_v1:${uid}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        const data = parsed?.data?.[difficulty]?.[String(puzzleIndex)];
+        return data || null;
+    } catch {
+        return null;
+    }
+}
+
 function readPendingSelection() {
     try {
         const raw = sessionStorage.getItem('sudokuSelection');
@@ -462,12 +476,69 @@ export default function SudokuPage(props) {
         return doc(db, 'sudokuSaves', docId);
     }, [firebaseDisabled, user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
+    const applyLoadedSave = (data, fallbackMode, fallbackDifficulty, fallbackIndex) => {
+        const loadedMode = data.mode === 'daily' ? 'daily' : data.mode === 'offline' ? 'offline' : fallbackMode;
+        const loadedDifficulty = data.difficulty || fallbackDifficulty || 'easy';
+        const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex) ? data.puzzleIndex : fallbackIndex;
+        const fallbackPick =
+            loadedMode === 'daily'
+                ? pickDailyPuzzleByDifficulty(loadedDifficulty, getLocalDateKey())
+                : Number.isFinite(loadedPuzzleIndex)
+                    ? pickPuzzleByIndex(loadedDifficulty, loadedPuzzleIndex)
+                    : pickRandomPuzzleByDifficulty(loadedDifficulty);
+        const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
+        const seedMaskPick = hasSeedMask
+            ? {
+                puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
+                seed: data.puzzleSeed,
+                mask: data.puzzleMask,
+            }
+            : null;
+        const loadedPuzzle =
+            stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
+        const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
+
+        console.log('[Sudoku] loaded save:', {
+            loadedMode,
+            loadedDifficulty,
+            loadedPuzzleIndex,
+            givens: countGivens(loadedPuzzle),
+            seed: seedMaskPick?.seed || fallbackPick.seed,
+        });
+
+        setMode(loadedMode);
+        setDifficulty(loadedDifficulty);
+        setPuzzle(loadedPuzzle);
+        if (Number.isFinite(loadedPuzzleIndex)) setPuzzleIndex(loadedPuzzleIndex);
+        setPuzzleSeed(seedMaskPick?.seed || fallbackPick.seed);
+        setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
+        setPuzzleListIndex(null);
+        setGrid(loadedGrid);
+        setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
+        setSolved(!!data.solved);
+        setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
+    };
+
     const fetchFromFirebase = async () => {
         if (firebaseDisabled) {
             setFirebaseCheckRequested(false);
             return;
         }
         if (!saveRef) {
+            return;
+        }
+        if (!navigator.onLine) {
+            const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+            const cached = readCachedSave(user?.uid, difficulty, idx);
+            if (cached) {
+                applyLoadedSave(
+                    cached,
+                    mode || 'offline',
+                    difficulty,
+                    Number.isFinite(idx) ? idx : null
+                );
+            }
+            setFirebaseCheckRequested(false);
             return;
         }
         setLoadingSave(true);
@@ -479,49 +550,29 @@ export default function SudokuPage(props) {
             }
 
             const data = snap.data();
-
-            const loadedMode = data.mode === 'daily' ? 'daily' : 'offline';
-            const loadedDifficulty = data.difficulty || 'easy';
-            const fallbackPick =
-                loadedMode === 'daily'
-                    ? pickDailyPuzzleByDifficulty(loadedDifficulty, getLocalDateKey())
-                    : pickRandomPuzzleByDifficulty(loadedDifficulty);
-            const hasSeedMask = typeof data.puzzleSeed === 'string' && typeof data.puzzleMask === 'string';
-            const seedMaskPick = hasSeedMask
-                ? {
-                    puzzle: buildPuzzleFromSeedAndMask(data.puzzleSeed, data.puzzleMask),
-                    seed: data.puzzleSeed,
-                    mask: data.puzzleMask,
-                }
-                : null;
-            const loadedPuzzle =
-                stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
-            const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
-            const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex)
-                ? data.puzzleIndex
-                : fallbackPick.poolIndex;
-
-            console.log('[Sudoku] loaded save:', {
-                loadedMode,
-                loadedDifficulty,
-                loadedPuzzleIndex,
-                givens: countGivens(loadedPuzzle),
-                seed: seedMaskPick?.seed || fallbackPick.seed,
-            });
-
-            setMode(loadedMode);
-            setDifficulty(loadedDifficulty);
-            setPuzzle(loadedPuzzle);
-            setPuzzleIndex(loadedPuzzleIndex);
-            setPuzzleSeed(seedMaskPick?.seed || fallbackPick.seed);
-            setPuzzleMask(seedMaskPick?.mask || fallbackPick.mask);
-            setPuzzleListIndex(null);
-            setGrid(loadedGrid);
-            setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
-            setSolved(!!data.solved);
-            setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
+            const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+            applyLoadedSave(
+                data,
+                mode || 'offline',
+                difficulty,
+                Number.isFinite(idx) ? idx : null
+            );
         } catch (e) {
             console.error('Failed to load sudoku save', e);
+            const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+            const cached = readCachedSave(user?.uid, difficulty, idx);
+            if (cached) {
+                applyLoadedSave(
+                    cached,
+                    mode || 'offline',
+                    difficulty,
+                    Number.isFinite(idx) ? idx : null
+                );
+                return;
+            }
+            if (!navigator.onLine) {
+                return;
+            }
             f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Sudoku Load Error');
         } finally {
             setLoadingSave(false);

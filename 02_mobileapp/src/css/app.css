@@ -35,6 +35,15 @@
     background: var(--f7-color-green) !important;
 }
 
+.navbar .right a.profile-btn .profile-btn__dot.online {
+    background: var(--f7-color-green) !important;
+}
+
+.navbar .right a.profile-btn .profile-btn__dot.offline {
+    background: var(--f7-color-red) !important;
+}
+
+
 /* Freunde-Tab: Badge als heller Punkt am Icon */
 .tabbar .link.friends-tab {
     position: relative;

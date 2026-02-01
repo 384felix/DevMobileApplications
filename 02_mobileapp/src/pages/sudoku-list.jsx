@@ -42,6 +42,18 @@ function buildSaveDocId(uid, difficulty, puzzleIndex) {
     return `${uid}_offline_${difficulty}_${puzzleIndex}`;
 }
 
+function readCachedSaves(uid) {
+    if (!uid) return {};
+    try {
+        const raw = localStorage.getItem(`sudokuSavesCache_v1:${uid}`);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed.data || {} : {};
+    } catch {
+        return {};
+    }
+}
+
 export default function SudokuListPage(props) {
     const [user, setUser] = useState(null);
     const [solvedMap, setSolvedMap] = useState({});
@@ -105,6 +117,20 @@ export default function SudokuListPage(props) {
             setProgressMap({});
             return;
         }
+        if (!navigator.onLine) {
+            const cached = readCachedSaves(user.uid);
+            const results = {};
+            items.forEach((idx) => {
+                const entry = cached?.[difficulty]?.[String(idx)];
+                if (!entry) return;
+                const puzzleFilled = countFilledFromString(entry.puzzleStr);
+                const gridFilled = countFilledFromString(entry.gridStr);
+                const inProgress = !entry.solved && gridFilled > puzzleFilled;
+                results[idx] = { inProgress: !!inProgress, solved: !!entry.solved };
+            });
+            setProgressMap(results);
+            return;
+        }
         try {
             const results = {};
             await Promise.all(
@@ -123,7 +149,17 @@ export default function SudokuListPage(props) {
             setProgressMap(results);
         } catch (e) {
             console.error('Failed to load progress', e);
-            setProgressMap({});
+            const cached = readCachedSaves(user.uid);
+            const results = {};
+            items.forEach((idx) => {
+                const entry = cached?.[difficulty]?.[String(idx)];
+                if (!entry) return;
+                const puzzleFilled = countFilledFromString(entry.puzzleStr);
+                const gridFilled = countFilledFromString(entry.gridStr);
+                const inProgress = !entry.solved && gridFilled > puzzleFilled;
+                results[idx] = { inProgress: !!inProgress, solved: !!entry.solved };
+            });
+            setProgressMap(results);
         }
     };
 

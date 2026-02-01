@@ -26,12 +26,17 @@ import routes from '../js/routes';
 import store from '../js/store';
 import { auth, db } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { Network } from '@capacitor/network';
 
 const MyApp = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [incomingCount, setIncomingCount] = useState(0);
+  const [online, setOnline] = useState(true);
+  const [user, setUser] = useState(null);
+  const onlineInitRef = useRef(false);
+  const cacheInFlightRef = useRef(false);
   const lastViewUrlRef = useRef({
     'view-sudoku': '/sudoku-menu/',
     'view-friends': '/friends/',
@@ -64,6 +69,45 @@ const MyApp = () => {
       f7.setDarkMode(darkMode);
     });
   }, []);
+
+  const buildSaveDocId = (uid, difficulty, puzzleIndex) => {
+    if (!uid) return null;
+    if (!Number.isFinite(puzzleIndex)) return null;
+    return `${uid}_offline_${difficulty}_${puzzleIndex}`;
+  };
+
+  const cacheSudokuSaves = async (uid) => {
+    if (!uid || cacheInFlightRef.current) return;
+    cacheInFlightRef.current = true;
+    try {
+      const difficulties = ['easy', 'medium', 'hard'];
+      const data = {};
+      await Promise.all(
+        difficulties.flatMap((difficulty) =>
+          Array.from({ length: 10 }, (_, idx) => idx).map(async (idx) => {
+            const docId = buildSaveDocId(uid, difficulty, idx);
+            if (!docId) return;
+            const snap = await getDoc(doc(db, 'sudokuSaves', docId));
+            if (!snap.exists()) return;
+            const d = snap.data() || {};
+            if (!data[difficulty]) data[difficulty] = {};
+            data[difficulty][String(idx)] = {
+              puzzleStr: d.puzzleStr || '',
+              gridStr: d.gridStr || '',
+              solved: !!d.solved,
+              updatedAt: d.updatedAt?.toMillis ? d.updatedAt.toMillis() : null,
+            };
+          })
+        )
+      );
+      const payload = { updatedAt: Date.now(), data };
+      localStorage.setItem(`sudokuSavesCache_v1:${uid}`, JSON.stringify(payload));
+    } catch (e) {
+      console.error('[cacheSudokuSaves] failed', e);
+    } finally {
+      cacheInFlightRef.current = false;
+    }
+  };
 
   // ✅ Wenn man vom Tab weg und zurück geht, Profil-Page schließen
   useEffect(() => {
@@ -107,13 +151,67 @@ const MyApp = () => {
 
   // ✅ Nach Login/Logout immer zurück ins Sudoku-Menü
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, () => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u || null);
       f7ready(() => {
         f7.views.main?.router.navigate('/sudoku-menu/', { reloadCurrent: true, ignoreCache: true });
       });
     });
     return () => unsub();
   }, []);
+
+  // ✅ Online/Offline Status global
+  useEffect(() => {
+    let listener;
+
+    const initNetwork = async () => {
+      try {
+        const status = await Network.getStatus();
+        setOnline(status.connected);
+
+        listener = await Network.addListener('networkStatusChange', (s) => {
+          setOnline(s.connected);
+        });
+      } catch (e) {
+        const update = () => setOnline(navigator.onLine);
+        update();
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+
+        return () => {
+          window.removeEventListener('online', update);
+          window.removeEventListener('offline', update);
+        };
+      }
+    };
+
+    const cleanupFallback = initNetwork();
+
+    return () => {
+      if (listener) listener.remove();
+      if (typeof cleanupFallback === 'function') cleanupFallback();
+    };
+  }, []);
+
+  // ✅ Online/Offline Toast nur bei Statuswechsel
+  useEffect(() => {
+    if (!user) return;
+    if (!onlineInitRef.current) {
+      onlineInitRef.current = true;
+      return;
+    }
+    f7.toast
+      .create({
+        text: online ? 'Online' : 'Offline',
+        closeTimeout: 1500,
+      })
+      .open();
+  }, [online, user]);
+
+  useEffect(() => {
+    if (!user || !online) return;
+    cacheSudokuSaves(user.uid);
+  }, [user, online]);
 
   // ✅ Roter Punkt bei neuen Freundschaftsanfragen
   useEffect(() => {
@@ -261,6 +359,7 @@ const MyApp = () => {
           </Page>
         </View>
       </LoginScreen>
+
     </App>
   );
 };
