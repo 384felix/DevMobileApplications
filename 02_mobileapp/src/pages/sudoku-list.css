@@ -18,7 +18,12 @@
   background: #d1e7dd;
 }
 
-.sudoku-status.open {
+.sudoku-status.unsolved {
   color: #842029;
   background: #f8d7da;
+}
+
+.sudoku-status.in-progress {
+  color: #7a4b00;
+  background: #fff3cd;
 }

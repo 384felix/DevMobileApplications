@@ -26,14 +26,32 @@ function normalizeDifficulty(diff) {
     return 'easy';
 }
 
+function countFilledFromString(str) {
+    if (!str || typeof str !== 'string') return 0;
+    let n = 0;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (ch >= '1' && ch <= '9') n++;
+    }
+    return n;
+}
+
+function buildSaveDocId(uid, difficulty, puzzleIndex) {
+    if (!uid) return null;
+    if (!Number.isFinite(puzzleIndex)) return null;
+    return `${uid}_offline_${difficulty}_${puzzleIndex}`;
+}
+
 export default function SudokuListPage(props) {
     const [user, setUser] = useState(null);
     const [solvedMap, setSolvedMap] = useState({});
     const [solvedSummary, setSolvedSummary] = useState({});
+    const [progressMap, setProgressMap] = useState({});
     const [difficulty, setDifficulty] = useState(
         normalizeDifficulty(props?.f7route?.query?.difficulty)
     );
     const label = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+    const items = Array.from({ length: 10 }, (_, i) => i);
 
     useEffect(() => {
         // - Merkt sich, wer eingeloggt ist (für "Gelöst"-Anzeige)
@@ -51,6 +69,7 @@ export default function SudokuListPage(props) {
         const fetchSummary = async () => {
             if (!user) {
                 setSolvedSummary({});
+                setProgressMap({});
                 return;
             }
             try {
@@ -68,6 +87,7 @@ export default function SudokuListPage(props) {
     const refreshSummary = async () => {
         if (!user) {
             setSolvedSummary({});
+            setProgressMap({});
             return;
         }
         try {
@@ -77,6 +97,33 @@ export default function SudokuListPage(props) {
         } catch (e) {
             console.error('Failed to load summary', e);
             setSolvedSummary({});
+        }
+    };
+
+    const refreshProgress = async () => {
+        if (!user) {
+            setProgressMap({});
+            return;
+        }
+        try {
+            const results = {};
+            await Promise.all(
+                items.map(async (idx) => {
+                    const docId = buildSaveDocId(user.uid, difficulty, idx);
+                    if (!docId) return;
+                    const snap = await getDoc(doc(db, 'sudokuSaves', docId));
+                    if (!snap.exists()) return;
+                    const data = snap.data() || {};
+                    const puzzleFilled = countFilledFromString(data.puzzleStr);
+                    const gridFilled = countFilledFromString(data.gridStr);
+                    const inProgress = !data.solved && gridFilled > puzzleFilled;
+                    results[idx] = { inProgress: !!inProgress, solved: !!data.solved };
+                })
+            );
+            setProgressMap(results);
+        } catch (e) {
+            console.error('Failed to load progress', e);
+            setProgressMap({});
         }
     };
 
@@ -92,7 +139,9 @@ export default function SudokuListPage(props) {
         setSolvedMap(readSolvedMap(user?.uid));
     };
 
-    const items = Array.from({ length: 10 }, (_, i) => i);
+    useEffect(() => {
+        refreshProgress();
+    }, [user, difficulty]);
 
     return (
         <Page
@@ -102,6 +151,7 @@ export default function SudokuListPage(props) {
                 console.log('[SudokuList] onPageBeforeIn');
                 refreshSolved();
                 refreshSummary();
+                refreshProgress();
             }}
         >
             <Navbar title={`Sudokus ${label}`} backLink="Zurück">
@@ -113,18 +163,22 @@ export default function SudokuListPage(props) {
                 <List inset>
                     {items.map((idx) => {
                         const solvedByFirebase = !!solvedSummary?.[difficulty]?.[String(idx)];
-                        const isSolved = user ? solvedByFirebase : !!solvedMap[`${difficulty}:${idx}`];
+                        const solvedBySave = !!progressMap?.[idx]?.solved;
+                        const isSolved = user ? (solvedByFirebase || solvedBySave) : !!solvedMap[`${difficulty}:${idx}`];
+                        const isInProgress = user ? !!progressMap?.[idx]?.inProgress : false;
+                        const statusLabel = isSolved ? 'Gelöst' : isInProgress ? 'In Bearbeitung' : 'Ungelöst';
+                        const statusClass = isSolved ? 'solved' : isInProgress ? 'in-progress' : 'unsolved';
                         return (
                             <ListItem
                                 key={`${difficulty}-${idx}`}
                                 title={`Sudoku ${idx + 1}`}
                                 after={
-                                    <span className={`sudoku-status ${isSolved ? 'solved' : 'open'}`}>
-                                        {isSolved ? 'Gelöst' : 'Offen'}
+                                    <span className={`sudoku-status ${statusClass}`}>
+                                        {statusLabel}
                                     </span>
                                 }
                                 link
-                                className={`sudoku-list-item ${isSolved ? 'solved' : 'open'}`}
+                                className={`sudoku-list-item ${statusClass}`}
                                 onClick={(e) => {
                                     // - Auswahl eines konkreten Sudokus (Index 0..9)
                                     console.log('[SudokuList] click puzzle', { difficulty, idx });
