@@ -418,12 +418,12 @@ export default function FriendsPage({ f7router }) {
     // Anzeigehelper: Username bevorzugt
     const labelForUid = (uid) => {
         const p = friendsProfiles[uid];
-        if (p?.username) return `@${p.username}`;
+        if (p?.username) return p.username;
         return uid ? `${uid.slice(0, 6)}…` : '(unbekannt)';
     };
 
     const labelForUserRow = (row) => {
-        if (row?.username) return `@${row.username}`;
+        if (row?.username) return row.username;
         return row?.uid ? `${row.uid.slice(0, 6)}…` : '(unbekannt)';
     };
 

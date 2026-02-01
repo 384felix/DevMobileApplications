@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   f7,
@@ -32,6 +32,11 @@ const MyApp = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [incomingCount, setIncomingCount] = useState(0);
+  const lastViewUrlRef = useRef({
+    'view-sudoku': '/sudoku-menu/',
+    'view-friends': '/friends/',
+    'view-leaderboard': '/leaderboard/',
+  });
 
   // ✅ Dark Mode State (persistiert)
   const [darkMode, setDarkMode] = useState(() => {
@@ -57,6 +62,46 @@ const MyApp = () => {
   useEffect(() => {
     f7ready(() => {
       f7.setDarkMode(darkMode);
+    });
+  }, []);
+
+  // ✅ Wenn man vom Tab weg und zurück geht, Profil-Page schließen
+  useEffect(() => {
+    f7ready(() => {
+      const viewIds = ['view-sudoku', 'view-friends', 'view-leaderboard'];
+      const views = viewIds
+        .map((id) => f7.views.get(`#${id}`))
+        .filter(Boolean);
+
+      const handleRouteChange = (viewId, route) => {
+        const url = route?.url;
+        if (url && !url.startsWith('/profile/')) {
+          lastViewUrlRef.current[viewId] = url;
+        }
+      };
+
+      const handleTabShow = (tabEl) => {
+        if (!tabEl?.id) return;
+        const view = f7.views.get(`#${tabEl.id}`);
+        if (!view) return;
+        const currentUrl = view.router?.currentRoute?.url || '';
+        if (currentUrl.startsWith('/profile/')) {
+          const target = lastViewUrlRef.current[tabEl.id] || view.router?.history?.[0] || '/';
+          view.router.navigate(target, { reloadCurrent: true, ignoreCache: true });
+        }
+      };
+
+      views.forEach((view) => {
+        view.router.on('routeChange', (route) => handleRouteChange(view.el?.id, route));
+      });
+      f7.on('tabShow', handleTabShow);
+
+      return () => {
+        views.forEach((view) => {
+          view.router.off('routeChange');
+        });
+        f7.off('tabShow', handleTabShow);
+      };
     });
   }, []);
 

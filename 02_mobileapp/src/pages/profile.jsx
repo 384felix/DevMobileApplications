@@ -526,7 +526,7 @@ const ProfilePage = () => {
 
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18 }}>
-                {profile.username?.trim() ? `@${profile.username}` : 'Noch kein Username'}
+                {profile.username?.trim() ? profile.username : 'Noch kein Username'}
               </div>
               <div style={{ opacity: 0.7, fontSize: 13 }}>{user.email}</div>
               {profileLoading && <div style={{ marginTop: 6, opacity: 0.6 }}>Profil wird geladen…</div>}
@@ -569,9 +569,6 @@ const ProfilePage = () => {
               </Button>
             </div>
 
-            <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-              Username ist eindeutig (Collection <b>usernames</b>). Groß/Klein ist egal: wir vergleichen immer <b>lowercase</b>.
-            </div>
           </Block>
         </>
       )}
