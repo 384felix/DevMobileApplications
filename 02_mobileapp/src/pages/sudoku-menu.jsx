@@ -53,10 +53,6 @@ export default function SudokuMenuPage() {
                     <ProfileButton />
                 </NavRight>
             </Navbar>
-            <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <div>Zuletzt bearbeitet:</div>
-                <div style={{ fontWeight: 700 }}>{lastPlayedLabel}</div>
-            </Block>
             <div
                 style={{
                     height: '100%',
@@ -78,6 +74,9 @@ export default function SudokuMenuPage() {
                         textAlign: 'center',
                     }}
                 >
+                    <div style={{ fontSize: 13, opacity: 0.7 }}>Zuletzt bearbeitet</div>
+                    <div style={{ fontWeight: 700 }}>{lastPlayedLabel}</div>
+
                     <div style={{ fontWeight: 700 }}>Tägliches Sudoku</div>
                     <Button fill onClick={() => goToSudoku({ mode: 'daily' })}>
                         Starten

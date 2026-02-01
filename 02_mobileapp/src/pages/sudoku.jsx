@@ -863,12 +863,6 @@ export default function SudokuPage(props) {
 
             <Block>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <Button fill onClick={loadNewPuzzle}>
-                        Neues Sudoku
-                    </Button>
-                    <Button outline onClick={resetPuzzle}>
-                        Reset
-                    </Button>
                     {canUseSolutionDebug && (
                         <Button outline onClick={fillWithSolution}>
                             Debug: Lösung einfügen

@@ -125,32 +125,36 @@ const ProfilePage = () => {
     };
   }, [user]);
 
+  const loadProfileFromFirebase = async (firebaseUser) => {
+    if (!firebaseUser) return;
+    const ref = doc(db, 'users', firebaseUser.uid);
+    setProfileLoading(true);
+    try {
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile({
+          username: data.username || '',
+          avatarUrl: data.avatarUrl || '',
+        });
+      } else {
+        setProfile({ username: '', avatarUrl: '' });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   // ---- Profil laden aus Firestore: users/{uid}
   useEffect(() => {
-    if (!user) return;
-
-    const ref = doc(db, 'users', user.uid);
-
-    (async () => {
-      setProfileLoading(true);
-      try {
-        const snap = await getDoc(ref);
-
-        if (snap.exists()) {
-          const data = snap.data();
-          setProfile({
-            username: data.username || '',
-            avatarUrl: data.avatarUrl || '',
-          });
-        } else {
-          setProfile({ username: '', avatarUrl: '' });
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setProfileLoading(false);
-      }
-    })();
+    if (!user) {
+      setProfile({ username: '', avatarUrl: '' });
+      return;
+    }
+    loadProfileFromFirebase(user);
   }, [user]);
 
   const canSaveProfile = useMemo(() => {
@@ -166,7 +170,8 @@ const ProfilePage = () => {
       return;
     }
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await loadProfileFromFirebase(cred.user);
       f7.toast.create({ text: 'Login erfolgreich ✅', closeTimeout: 1500 }).open();
     } catch (err) {
       f7.dialog.alert(err.message, 'Login fehlgeschlagen');
@@ -407,62 +412,71 @@ const ProfilePage = () => {
             </Button>
           </Block>
 
-          <List strong inset dividersIos>
-            <ListInput
-              label="E-Mail"
-              type="email"
-              placeholder="name@beispiel.de"
-              value={email}
-              onInput={(e) => setEmail(e.target.value)}
-              clearButton
-            />
-            {mode === 'register' && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (mode === 'login') {
+                handleLogin();
+              } else {
+                handleRegister();
+              }
+            }}
+          >
+            <List strong inset dividersIos>
               <ListInput
-                label="Username *"
-                type="text"
-                placeholder="z.B. flizzmaster"
-                value={regUsername}
-                onInput={(e) => setRegUsername(e.target.value)}
+                label="E-Mail"
+                type="email"
+                placeholder="name@beispiel.de"
+                value={email}
+                onInput={(e) => setEmail(e.target.value)}
                 clearButton
               />
-            )}
-            <ListInput
-              label="Passwort"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onInput={(e) => setPassword(e.target.value)}
-              clearButton
-            />
-            {mode === 'register' && (
+              {mode === 'register' && (
+                <ListInput
+                  label="Username *"
+                  type="text"
+                  placeholder="z.B. flizzmaster"
+                  value={regUsername}
+                  onInput={(e) => setRegUsername(e.target.value)}
+                  clearButton
+                />
+              )}
               <ListInput
-                label="Passwort wiederholen"
+                label="Passwort"
                 type="password"
                 placeholder="••••••••"
-                value={password2}
-                onInput={(e) => setPassword2(e.target.value)}
+                value={password}
+                onInput={(e) => setPassword(e.target.value)}
                 clearButton
               />
-            )}
-          </List>
+              {mode === 'register' && (
+                <ListInput
+                  label="Passwort wiederholen"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password2}
+                  onInput={(e) => setPassword2(e.target.value)}
+                  clearButton
+                />
+              )}
+            </List>
 
-          <Block>
-            {mode === 'register' && (
-              <div style={{ marginBottom: 8, opacity: 0.7, fontSize: 13 }}>
-                {regUsernameStatus === 'idle' && 'Bitte Username eingeben.'}
-                {regUsernameStatus === 'checking' && 'Username wird geprüft…'}
-                {regUsernameStatus === 'available' && 'Username ist frei ✅'}
-                {regUsernameStatus === 'taken' && 'Username ist vergeben ❌'}
-                {regUsernameStatus === 'invalid' &&
-                  'Username: 3–20 Zeichen, nur a-z, 0-9, . oder _'}
-              </div>
-            )}
-            {mode === 'login' ? (
-              <ListButton title="Einloggen" onClick={handleLogin} />
-            ) : (
-              <ListButton title="Registrieren" onClick={handleRegister} />
-            )}
-          </Block>
+            <Block>
+              {mode === 'register' && (
+                <div style={{ marginBottom: 8, opacity: 0.7, fontSize: 13 }}>
+                  {regUsernameStatus === 'idle' && 'Bitte Username eingeben.'}
+                  {regUsernameStatus === 'checking' && 'Username wird geprüft…'}
+                  {regUsernameStatus === 'available' && 'Username ist frei ✅'}
+                  {regUsernameStatus === 'taken' && 'Username ist vergeben ❌'}
+                  {regUsernameStatus === 'invalid' &&
+                    'Username: 3–20 Zeichen, nur a-z, 0-9, . oder _'}
+                </div>
+              )}
+              <Button fill type="submit">
+                {mode === 'login' ? 'Einloggen' : 'Registrieren'}
+              </Button>
+            </Block>
+          </form>
         </>
       ) : (
         <>
