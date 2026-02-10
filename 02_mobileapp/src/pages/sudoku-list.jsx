@@ -198,9 +198,7 @@ export default function SudokuListPage(props) {
             }}
         >
             <Navbar title={`Sudokus ${label}`}>
-                <Link slot="left" iconF7="chevron_left" onClick={handleBackToMenu}>
-                    Zurück
-                </Link>
+                <Link slot="left" iconF7="chevron_left" aria-label="Zurück" onClick={handleBackToMenu} />
                 <NavRight>
                     <ProfileButton />
                 </NavRight>

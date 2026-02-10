@@ -690,8 +690,14 @@ export default function FriendsPage({ f7router }) {
                                     return (
                                         <ListItem
                                             key={fr.id}
-                                            title={labelForUid(otherUid)}
-                                            subtitle={`Freund · ${lastSeenLabel}`}
+                                            title={
+                                                <div style={{ display: 'grid', gap: 2 }}>
+                                                    <div>{labelForUid(otherUid)}</div>
+                                                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                        {lastSeenLabel}
+                                                    </div>
+                                                </div>
+                                            }
                                             after={
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     <span

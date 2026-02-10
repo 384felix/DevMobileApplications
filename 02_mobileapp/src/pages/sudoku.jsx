@@ -240,6 +240,13 @@ function saveLastPlayed(payload) {
     }
 }
 
+function buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex) {
+    if (mode === 'daily') return { mode: 'daily', date: getLocalDateKey() };
+    const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
+    if (!Number.isFinite(idx)) return null;
+    return { mode: 'offline', difficulty, index: idx };
+}
+
 function countGivens(grid) {
     let n = 0;
     for (let r = 0; r < 9; r++) {
@@ -398,6 +405,7 @@ export default function SudokuPage(props) {
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
+    const hasUnsavedGridChangesRef = useRef(false);
 
     // -------------------------
     const initialPickRef = useRef(null);
@@ -437,8 +445,10 @@ export default function SudokuPage(props) {
         if (given[r][c]) return;
 
         setGrid((prev) => {
+            if (prev[r][c] === n) return prev;
             const next = clone9(prev);
             next[r][c] = n;
+            hasUnsavedGridChangesRef.current = true;
             return next;
         });
     };
@@ -517,6 +527,7 @@ export default function SudokuPage(props) {
         setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
         setSolved(!!data.solved);
         setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
+        hasUnsavedGridChangesRef.current = false;
     };
 
     const fetchFromFirebase = async () => {
@@ -621,6 +632,12 @@ export default function SudokuPage(props) {
                 { merge: true }
             );
 
+            if (hasUnsavedGridChangesRef.current) {
+                const payload = buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex);
+                if (payload) saveLastPlayed(payload);
+                hasUnsavedGridChangesRef.current = false;
+            }
+
             f7.toast.create({ text: 'Gespeichert ✅', closeTimeout: 1500 }).open();
         } catch (e) {
             console.error('Manual save failed', e);
@@ -659,6 +676,11 @@ export default function SudokuPage(props) {
                     },
                     { merge: true }
                 );
+                if (hasUnsavedGridChangesRef.current) {
+                    const payload = buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex);
+                    if (payload) saveLastPlayed(payload);
+                    hasUnsavedGridChangesRef.current = false;
+                }
             } catch (e) {
                 console.error('Auto-save failed', e);
             }
@@ -703,11 +725,7 @@ export default function SudokuPage(props) {
         setGrid(clone9(nextPick.puzzle));
         setSelected({ r: 0, c: 0 });
         hasLoadedRef.current = true;
-        if (nextMode === 'offline') {
-            saveLastPlayed({ mode: 'offline', difficulty: diff, index: nextPick.poolIndex });
-        } else {
-            saveLastPlayed({ mode: 'daily', date: dateKey });
-        }
+        hasUnsavedGridChangesRef.current = false;
     };
 
     const applySelection = (sel) => {
@@ -759,7 +777,7 @@ export default function SudokuPage(props) {
             if (!firebaseDisabled) {
                 setFirebaseCheckRequested(true);
             }
-            saveLastPlayed({ mode: 'offline', difficulty: finalDifficulty, index: parsedPuzzleIndex });
+            hasUnsavedGridChangesRef.current = false;
 
         } else {
             loadPuzzleForMode(finalDifficulty, finalMode);
@@ -818,6 +836,11 @@ export default function SudokuPage(props) {
                         },
                         { merge: true }
                     );
+                    if (hasUnsavedGridChangesRef.current) {
+                        const payload = buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex);
+                        if (payload) saveLastPlayed(payload);
+                        hasUnsavedGridChangesRef.current = false;
+                    }
                     f7.toast.create({ text: 'Gelöst & gespeichert ✅', closeTimeout: 1500 }).open();
                 } catch (e) {
                     console.error('Save on solve failed', e);
