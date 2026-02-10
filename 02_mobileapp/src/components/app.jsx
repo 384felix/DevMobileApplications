@@ -230,6 +230,24 @@ const MyApp = () => {
     );
   }, [user, online, appVisible]);
 
+  // ✅ Presence-Heartbeat: lastSeen regelmäßig aktualisieren, solange der Nutzer wirklich online ist
+  useEffect(() => {
+    const uid = user?.uid || null;
+    const shouldBeOnline = !!uid && online && appVisible;
+    if (!shouldBeOnline) return;
+
+    const ref = doc(db, 'users', uid);
+    const intervalId = window.setInterval(() => {
+      setDoc(ref, { online: true, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
+        console.error('[presence] heartbeat failed', e)
+      );
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [user, online, appVisible]);
+
   // ✅ Beim Unmount sicher offline setzen
   useEffect(() => {
     return () => {

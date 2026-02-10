@@ -34,6 +34,28 @@ import {
     where,
 } from 'firebase/firestore';
 
+const ONLINE_STALE_MS = 60 * 1000;
+
+function toMillis(ts) {
+    if (!ts) return null;
+    if (typeof ts?.toMillis === 'function') return ts.toMillis();
+    if (ts instanceof Date) return ts.getTime();
+    return null;
+}
+
+function formatLastSeenLabel(lastSeenMs, nowMs) {
+    if (!Number.isFinite(lastSeenMs)) return 'Zuletzt online: unbekannt';
+    const diffMs = Math.max(0, nowMs - lastSeenMs);
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return 'Zuletzt online: gerade eben';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `Zuletzt online: vor ${diffMin} Min.`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `Zuletzt online: vor ${diffHours} Std.`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `Zuletzt online: vor ${diffDays} Tag${diffDays === 1 ? '' : 'en'}`;
+}
+
 // friendId deterministisch
 function makeFriendId(uidA, uidB) {
     return [uidA, uidB].sort().join('_');
@@ -41,6 +63,7 @@ function makeFriendId(uidA, uidB) {
 
 export default function FriendsPage({ f7router }) {
     const [user, setUser] = useState(null);
+    const [nowTs, setNowTs] = useState(Date.now());
 
     // Suche
     const [searchText, setSearchText] = useState('');
@@ -63,6 +86,11 @@ export default function FriendsPage({ f7router }) {
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
+    }, []);
+
+    useEffect(() => {
+        const id = window.setInterval(() => setNowTs(Date.now()), 15000);
+        return () => window.clearInterval(id);
     }, []);
 
     const myUid = user?.uid || null;
@@ -655,12 +683,15 @@ export default function FriendsPage({ f7router }) {
                                 {friendsDocs.map((fr) => {
                                     const otherUid = (fr.uids || []).find((u) => u !== myUid) || '';
                                     const friendProfile = friendsProfiles[otherUid] || {};
-                                    const isOnline = !!friendProfile.online;
+                                    const lastSeenMs = toMillis(friendProfile.lastSeen);
+                                    const isFresh = typeof lastSeenMs === 'number' && nowTs - lastSeenMs <= ONLINE_STALE_MS;
+                                    const isOnline = !!friendProfile.online && isFresh;
+                                    const lastSeenLabel = isOnline ? 'Zuletzt online: jetzt' : formatLastSeenLabel(lastSeenMs, nowTs);
                                     return (
                                         <ListItem
                                             key={fr.id}
                                             title={labelForUid(otherUid)}
-                                            subtitle="Freund"
+                                            subtitle={`Freund · ${lastSeenLabel}`}
                                             after={
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     <span
