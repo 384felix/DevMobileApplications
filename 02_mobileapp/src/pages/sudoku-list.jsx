@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Page, Navbar, NavRight, Block, List, ListItem, f7 } from 'framework7-react';
+import { Page, Navbar, NavRight, Block, List, ListItem, Link, f7 } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../js/firebase';
@@ -179,6 +179,13 @@ export default function SudokuListPage(props) {
         refreshProgress();
     }, [user, difficulty]);
 
+    const handleBackToMenu = (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        const router = f7.views.main?.router;
+        if (!router) return;
+        router.navigate('/sudoku-menu/', { reloadCurrent: true, ignoreCache: true });
+    };
+
     return (
         <Page
             name="sudoku-list"
@@ -190,7 +197,10 @@ export default function SudokuListPage(props) {
                 refreshProgress();
             }}
         >
-            <Navbar title={`Sudokus ${label}`} backLink="Zurück">
+            <Navbar title={`Sudokus ${label}`}>
+                <Link slot="left" iconF7="chevron_left" onClick={handleBackToMenu}>
+                    Zurück
+                </Link>
                 <NavRight>
                     <ProfileButton />
                 </NavRight>
