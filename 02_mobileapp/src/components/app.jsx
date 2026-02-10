@@ -26,17 +26,19 @@ import routes from '../js/routes';
 import store from '../js/store';
 import { auth, db } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 
 const MyApp = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [incomingCount, setIncomingCount] = useState(0);
-  const [online, setOnline] = useState(true);
+  const [online, setOnline] = useState(false);
+  const [appVisible, setAppVisible] = useState(typeof document !== 'undefined' ? !document.hidden : true);
   const [user, setUser] = useState(null);
   const onlineInitRef = useRef(false);
   const cacheInFlightRef = useRef(false);
+  const presenceUidRef = useRef(null);
   const lastViewUrlRef = useRef({
     'view-sudoku': '/sudoku-menu/',
     'view-friends': '/friends/',
@@ -190,6 +192,52 @@ const MyApp = () => {
     return () => {
       if (listener) listener.remove();
       if (typeof cleanupFallback === 'function') cleanupFallback();
+    };
+  }, []);
+
+  // ✅ App-Sichtbarkeit für Presence
+  useEffect(() => {
+    const updateVisibility = () => setAppVisible(!document.hidden);
+    const markHidden = () => setAppVisible(false);
+
+    updateVisibility();
+    document.addEventListener('visibilitychange', updateVisibility);
+    window.addEventListener('pagehide', markHidden);
+
+    return () => {
+      document.removeEventListener('visibilitychange', updateVisibility);
+      window.removeEventListener('pagehide', markHidden);
+    };
+  }, []);
+
+  // ✅ Presence in Firestore: Online nur wenn eingeloggt + Netz + App sichtbar
+  useEffect(() => {
+    const currentUid = user?.uid || null;
+    const previousUid = presenceUidRef.current;
+
+    if (previousUid && previousUid !== currentUid) {
+      setDoc(doc(db, 'users', previousUid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
+        console.error('[presence] mark previous user offline failed', e)
+      );
+    }
+
+    presenceUidRef.current = currentUid;
+    if (!currentUid) return;
+
+    const shouldBeOnline = online && appVisible;
+    setDoc(doc(db, 'users', currentUid), { online: shouldBeOnline, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
+      console.error('[presence] update failed', e)
+    );
+  }, [user, online, appVisible]);
+
+  // ✅ Beim Unmount sicher offline setzen
+  useEffect(() => {
+    return () => {
+      const uid = presenceUidRef.current;
+      if (!uid) return;
+      setDoc(doc(db, 'users', uid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
+        console.error('[presence] unmount offline failed', e)
+      );
     };
   }, []);
 

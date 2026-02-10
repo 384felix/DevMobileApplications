@@ -57,7 +57,7 @@ export default function FriendsPage({ f7router }) {
 
     // Friends
     const [friendsDocs, setFriendsDocs] = useState([]);
-    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarUrl }
+    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarUrl, online, lastSeen }
 
     // Auth listener
     useEffect(() => {
@@ -179,6 +179,50 @@ export default function FriendsPage({ f7router }) {
 
         return () => unsub();
     }, [myUid]);
+
+    // -------------------------
+    // Freunde-Profile live (inkl. Online/Offline)
+    // -------------------------
+    useEffect(() => {
+        if (!myUid) return;
+
+        const friendUids = [...new Set(
+            friendsDocs
+                .flatMap((f) => f.uids || [])
+                .filter((uid) => uid && uid !== myUid)
+        )];
+
+        if (friendUids.length === 0) return;
+
+        const unsubs = friendUids.map((uid) =>
+            onSnapshot(
+                doc(db, 'users', uid),
+                (snap) => {
+                    const data = snap.exists() ? snap.data() : {};
+                    setFriendsProfiles((prev) => ({
+                        ...prev,
+                        [uid]: {
+                            ...(prev[uid] || {}),
+                            uid,
+                            username: data.username || prev[uid]?.username || '',
+                            usernameLower: data.usernameLower || prev[uid]?.usernameLower || '',
+                            avatarUrl: data.avatarUrl || prev[uid]?.avatarUrl || '',
+                            email: data.email || prev[uid]?.email || '',
+                            online: !!data.online,
+                            lastSeen: data.lastSeen || null,
+                        },
+                    }));
+                },
+                (err) => {
+                    console.error('[friends profiles] listener error:', uid, err);
+                }
+            )
+        );
+
+        return () => {
+            unsubs.forEach((u) => u());
+        };
+    }, [friendsDocs, myUid]);
 
     // -------------------------
     // Friend/Request profiles nachladen (für Anzeige)
@@ -404,8 +448,15 @@ export default function FriendsPage({ f7router }) {
     };
 
     const removeFriend = async (friendDoc) => {
-        const ok = await f7.dialog.confirm('Möchtest du diesen Freund wirklich entfernen?', 'Freund entfernen?');
-        if (!ok) return;
+        const confirmed = await new Promise((resolve) => {
+            f7.dialog.confirm(
+                'Möchtest du diesen Freund wirklich entfernen?',
+                'Freund entfernen?',
+                () => resolve(true),
+                () => resolve(false)
+            );
+        });
+        if (!confirmed) return;
         try {
             await deleteDoc(doc(db, 'friends', friendDoc.id));
             f7.toast.create({ text: 'Freund entfernt', closeTimeout: 1200 }).open();

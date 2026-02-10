@@ -89,41 +89,7 @@ const ProfilePage = () => {
     };
   }, []);
 
-  // ---- Online-Status in Firestore schreiben (users/{uid})
-  useEffect(() => {
-    if (!user) return;
-    const ref = doc(db, 'users', user.uid);
-    setDoc(
-      ref,
-      { online, lastSeen: serverTimestamp() },
-      { merge: true }
-    ).catch((e) => console.error('[profile] online status update error', e));
-  }, [user, online]);
-
-  // ---- Bei App-Hintergrund/Close als offline markieren
-  useEffect(() => {
-    if (!user) return;
-    const ref = doc(db, 'users', user.uid);
-
-    const setOffline = () => {
-      setDoc(ref, { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
-        console.error('[profile] offline status update error', e)
-      );
-    };
-
-    const handleVisibility = () => {
-      if (document.hidden) setOffline();
-    };
-
-    window.addEventListener('beforeunload', setOffline);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('beforeunload', setOffline);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      setOffline();
-    };
-  }, [user]);
+  // Presence (online/offline in Firestore) wird global in components/app.jsx gepflegt.
 
   const loadProfileFromFirebase = async (firebaseUser) => {
     if (!firebaseUser) return;
