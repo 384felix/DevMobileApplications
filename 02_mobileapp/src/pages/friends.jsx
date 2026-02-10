@@ -35,6 +35,7 @@ import {
 } from 'firebase/firestore';
 
 const ONLINE_STALE_MS = 60 * 1000;
+const DEFAULT_AVATAR_ID = 'Avatar_01';
 
 function toMillis(ts) {
     if (!ts) return null;
@@ -54,6 +55,11 @@ function formatLastSeenLabel(lastSeenMs, nowMs) {
     if (diffHours < 24) return `Zuletzt online: vor ${diffHours} Std.`;
     const diffDays = Math.floor(diffHours / 24);
     return `Zuletzt online: vor ${diffDays} Tag${diffDays === 1 ? '' : 'en'}`;
+}
+
+function avatarUrlFromId(avatarId) {
+    const safeId = avatarId || DEFAULT_AVATAR_ID;
+    return `${import.meta.env.BASE_URL}Avatars/${safeId}.png`;
 }
 
 // friendId deterministisch
@@ -80,7 +86,7 @@ export default function FriendsPage({ f7router }) {
 
     // Friends
     const [friendsDocs, setFriendsDocs] = useState([]);
-    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarUrl, online, lastSeen }
+    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarId, online, lastSeen }
 
     // Auth listener
     useEffect(() => {
@@ -116,7 +122,7 @@ export default function FriendsPage({ f7router }) {
                         username: data.username || '',
                         usernameLower: data.usernameLower || '',
                         email: data.email || '',
-                        avatarUrl: data.avatarUrl || '',
+                        avatarId: data.avatarId || DEFAULT_AVATAR_ID,
                     });
                 });
 
@@ -234,7 +240,7 @@ export default function FriendsPage({ f7router }) {
                             uid,
                             username: data.username || prev[uid]?.username || '',
                             usernameLower: data.usernameLower || prev[uid]?.usernameLower || '',
-                            avatarUrl: data.avatarUrl || prev[uid]?.avatarUrl || '',
+                            avatarId: data.avatarId || prev[uid]?.avatarId || DEFAULT_AVATAR_ID,
                             email: data.email || prev[uid]?.email || '',
                             online: !!data.online,
                             lastSeen: data.lastSeen || null,
@@ -285,13 +291,13 @@ export default function FriendsPage({ f7router }) {
                             uid,
                             username: data.username || '',
                             usernameLower: data.usernameLower || '',
-                            avatarUrl: data.avatarUrl || '',
+                            avatarId: data.avatarId || DEFAULT_AVATAR_ID,
                             email: data.email || '',
                             online: !!data.online,
                             lastSeen: data.lastSeen || null,
                         };
                     } else {
-                        updates[uid] = { uid, username: '', avatarUrl: '', online: false, lastSeen: null };
+                        updates[uid] = { uid, username: '', avatarId: DEFAULT_AVATAR_ID, online: false, lastSeen: null };
                     }
                 }
                 setFriendsProfiles((p) => ({ ...p, ...updates }));
@@ -329,14 +335,14 @@ export default function FriendsPage({ f7router }) {
             snap.forEach((d) => {
                 if (d.id === myUid) return;
                 const data = d.data();
-                rows.push({
-                    uid: d.id,
-                    username: data.username || '',
-                    usernameLower: data.usernameLower || '',
-                    email: data.email || '',
-                    avatarUrl: data.avatarUrl || '',
+                    rows.push({
+                        uid: d.id,
+                        username: data.username || '',
+                        usernameLower: data.usernameLower || '',
+                        email: data.email || '',
+                        avatarId: data.avatarId || DEFAULT_AVATAR_ID,
+                    });
                 });
-            });
 
             setSearchResults(rows);
 
@@ -687,14 +693,22 @@ export default function FriendsPage({ f7router }) {
                                     const isFresh = typeof lastSeenMs === 'number' && nowTs - lastSeenMs <= ONLINE_STALE_MS;
                                     const isOnline = !!friendProfile.online && isFresh;
                                     const lastSeenLabel = isOnline ? 'Zuletzt online: jetzt' : formatLastSeenLabel(lastSeenMs, nowTs);
+                                    const avatarSrc = avatarUrlFromId(friendProfile.avatarId);
                                     return (
                                         <ListItem
                                             key={fr.id}
                                             title={
-                                                <div style={{ display: 'grid', gap: 2 }}>
-                                                    <div>{labelForUid(otherUid)}</div>
-                                                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                                        {lastSeenLabel}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <img
+                                                        src={avatarSrc}
+                                                        alt="Avatar"
+                                                        style={{ width: 34, height: 34, borderRadius: 999, objectFit: 'cover' }}
+                                                    />
+                                                    <div style={{ display: 'grid', gap: 2 }}>
+                                                        <div>{labelForUid(otherUid)}</div>
+                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                            {lastSeenLabel}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             }
