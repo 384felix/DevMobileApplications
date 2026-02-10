@@ -256,12 +256,25 @@ const ProfilePage = () => {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    setEmail('');
-    setPassword('');
-    setPassword2('');
-    setMode('login');
-    setProfile({ username: '', avatarUrl: '' });
+    const uid = auth.currentUser?.uid || user?.uid || null;
+    try {
+      if (uid) {
+        await setDoc(
+          doc(db, 'users', uid),
+          { online: false, lastSeen: serverTimestamp() },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      console.error('[profile] logout offline update error', e);
+    } finally {
+      await signOut(auth);
+      setEmail('');
+      setPassword('');
+      setPassword2('');
+      setMode('login');
+      setProfile({ username: '', avatarUrl: '' });
+    }
   };
 
   // ---- Profil speichern (Username eindeutig via usernames/{usernameLower})
