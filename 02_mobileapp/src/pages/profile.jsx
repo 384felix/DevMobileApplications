@@ -26,7 +26,7 @@ const AVATAR_IDS = Array.from({ length: 10 }, (_, i) => `Avatar_${String(i + 1).
 
 function avatarUrlFromId(avatarId) {
   if (!avatarId) return '';
-  return `/Avatars/${avatarId}.png`;
+  return `${import.meta.env.BASE_URL}Avatars/${avatarId}.png`;
 }
 
 const ProfilePage = () => {
