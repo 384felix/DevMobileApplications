@@ -22,6 +22,13 @@ import {
 import { doc, getDoc, runTransaction, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 
+const AVATAR_IDS = Array.from({ length: 10 }, (_, i) => `Avatar_${String(i + 1).padStart(2, '0')}`);
+
+function avatarUrlFromId(avatarId) {
+  if (!avatarId) return '';
+  return `/Avatars/${avatarId}.png`;
+}
+
 const ProfilePage = () => {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
 
@@ -44,7 +51,7 @@ const ProfilePage = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profile, setProfile] = useState({
     username: '',
-    avatarUrl: '',
+    avatarId: AVATAR_IDS[0],
   });
 
   // ---- Auth Listener
@@ -102,10 +109,10 @@ const ProfilePage = () => {
         const data = snap.data();
         setProfile({
           username: data.username || '',
-          avatarUrl: data.avatarUrl || '',
+          avatarId: AVATAR_IDS.includes(data.avatarId) ? data.avatarId : AVATAR_IDS[0],
         });
       } else {
-        setProfile({ username: '', avatarUrl: '' });
+        setProfile({ username: '', avatarId: AVATAR_IDS[0] });
       }
     } catch (e) {
       console.error(e);
@@ -117,7 +124,7 @@ const ProfilePage = () => {
   // ---- Profil laden aus Firestore: users/{uid}
   useEffect(() => {
     if (!user) {
-      setProfile({ username: '', avatarUrl: '' });
+      setProfile({ username: '', avatarId: AVATAR_IDS[0] });
       return;
     }
     loadProfileFromFirebase(user);
@@ -229,7 +236,7 @@ const ProfilePage = () => {
             email: cred.user.email || '',
             username: regUsername.trim(),
             usernameLower,
-            avatarUrl: '',
+            avatarId: AVATAR_IDS[0],
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           },
@@ -273,7 +280,7 @@ const ProfilePage = () => {
       setPassword('');
       setPassword2('');
       setMode('login');
-      setProfile({ username: '', avatarUrl: '' });
+      setProfile({ username: '', avatarId: AVATAR_IDS[0] });
     }
   };
 
@@ -342,7 +349,7 @@ const ProfilePage = () => {
             username: usernameRaw,
             usernameLower,
             email: user.email || '',
-            avatarUrl: current.avatarUrl || profile.avatarUrl || '',
+            avatarId: AVATAR_IDS.includes(profile.avatarId) ? profile.avatarId : AVATAR_IDS[0],
             updatedAt: serverTimestamp(),
             createdAt: current.createdAt || serverTimestamp(),
           },
@@ -477,31 +484,11 @@ const ProfilePage = () => {
 
           {/* Header Card */}
           <Block strong inset style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            {/* Avatar (optional URL) */}
-            {profile.avatarUrl ? (
-              <img
-                src={profile.avatarUrl}
-                alt="Avatar"
-                style={{ width: 56, height: 56, borderRadius: 999, objectFit: 'cover' }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 999,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 18,
-                  background: 'var(--f7-theme-color)',
-                  color: '#fff',
-                }}
-              >
-                @
-              </div>
-            )}
+            <img
+              src={avatarUrlFromId(profile.avatarId)}
+              alt="Avatar"
+              style={{ width: 56, height: 56, borderRadius: 999, objectFit: 'cover' }}
+            />
 
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18 }}>
@@ -523,15 +510,39 @@ const ProfilePage = () => {
               clearButton
             />
 
-            <ListInput
-              label="Avatar URL (optional)"
-              type="url"
-              placeholder="https://..."
-              value={profile.avatarUrl}
-              onInput={(e) => setProfile((p) => ({ ...p, avatarUrl: e.target.value }))}
-              clearButton
-            />
           </List>
+
+          <BlockTitle>Avatar auswählen</BlockTitle>
+          <Block strong inset>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+              {AVATAR_IDS.map((avatarId) => {
+                const selected = profile.avatarId === avatarId;
+                return (
+                  <button
+                    key={avatarId}
+                    type="button"
+                    onClick={() => setProfile((p) => ({ ...p, avatarId }))}
+                    style={{
+                      border: selected ? '2px solid var(--f7-theme-color)' : '1px solid var(--f7-color-gray)',
+                      borderRadius: 999,
+                      padding: 2,
+                      background: 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    aria-label={`Avatar ${avatarId}`}
+                  >
+                    <img
+                      src={avatarUrlFromId(avatarId)}
+                      alt={avatarId}
+                      style={{ width: 48, height: 48, borderRadius: 999, objectFit: 'cover' }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </Block>
 
           <Block>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
