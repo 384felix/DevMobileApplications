@@ -25,6 +25,7 @@ import {
 import routes from '../js/routes';
 import store from '../js/store';
 import { auth, db } from '../js/firebase';
+import LoadingScreen from '../pages/loading.jsx';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
@@ -36,11 +37,14 @@ const MyApp = () => {
   const [online, setOnline] = useState(false);
   const [appVisible, setAppVisible] = useState(typeof document !== 'undefined' ? !document.hidden : true);
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [minimumSplashDone, setMinimumSplashDone] = useState(false);
   const onlineInitRef = useRef(false);
   const cacheInFlightRef = useRef(false);
   const presenceUidRef = useRef(null);
+  const authInitHandledRef = useRef(false);
   const lastViewUrlRef = useRef({
-    'view-sudoku': '/sudoku-menu/',
+    'view-sudoku': '/start/',
     'view-friends': '/friends/',
     'view-leaderboard': '/leaderboard/',
   });
@@ -58,7 +62,7 @@ const MyApp = () => {
     pushStateRoot: '/',
 
     colors: {
-      primary: '#1e3a8a', // dunkelblau
+      primary: '#2b93bf',
     },
 
     store,
@@ -70,6 +74,13 @@ const MyApp = () => {
     f7ready(() => {
       f7.setDarkMode(darkMode);
     });
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setMinimumSplashDone(true);
+    }, 900);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const buildSaveDocId = (uid, difficulty, puzzleIndex) => {
@@ -155,7 +166,12 @@ const MyApp = () => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
+      setAuthReady(true);
       f7ready(() => {
+        if (!authInitHandledRef.current) {
+          authInitHandledRef.current = true;
+          return;
+        }
         f7.views.main?.router.navigate('/sudoku-menu/', { reloadCurrent: true, ignoreCache: true });
       });
     });
@@ -316,6 +332,10 @@ const MyApp = () => {
     });
   };
 
+  if (!authReady || !minimumSplashDone) {
+    return <LoadingScreen />;
+  }
+
   return (
     <App {...f7params}>
       {/* Left panel */}
@@ -373,7 +393,7 @@ const MyApp = () => {
           />
         </Toolbar>
 
-        <View id="view-sudoku" main tab tabActive url="/sudoku-menu/" />
+        <View id="view-sudoku" main tab tabActive url="/start/" />
         <View id="view-friends" tab url="/friends/" />
         <View id="view-leaderboard" tab url="/leaderboard/" />
       </Views>

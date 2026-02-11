@@ -693,6 +693,7 @@ export default function FriendsPage({ f7router }) {
                                     const isFresh = typeof lastSeenMs === 'number' && nowTs - lastSeenMs <= ONLINE_STALE_MS;
                                     const isOnline = !!friendProfile.online && isFresh;
                                     const lastSeenLabel = isOnline ? 'Zuletzt online: jetzt' : formatLastSeenLabel(lastSeenMs, nowTs);
+                                    const lastSeenText = lastSeenLabel.replace(/^Zuletzt online:\s*/i, '');
                                     const avatarSrc = avatarUrlFromId(friendProfile.avatarId);
                                     return (
                                         <ListItem
@@ -706,8 +707,10 @@ export default function FriendsPage({ f7router }) {
                                                     />
                                                     <div style={{ display: 'grid', gap: 2 }}>
                                                         <div>{labelForUid(otherUid)}</div>
-                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                                            {lastSeenLabel}
+                                                        <div className="last-seen-label" style={{ fontSize: 12, opacity: 0.7 }}>
+                                                            <span className="last-seen-prefix-full">Zuletzt online: </span>
+                                                            <span className="last-seen-prefix-short">Zul. onl. </span>
+                                                            <span>{lastSeenText}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -715,6 +718,7 @@ export default function FriendsPage({ f7router }) {
                                             after={
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     <span
+                                                        className="friend-status-indicator"
                                                         style={{
                                                             display: 'inline-flex',
                                                             alignItems: 'center',
@@ -724,6 +728,7 @@ export default function FriendsPage({ f7router }) {
                                                         }}
                                                     >
                                                         <span
+                                                            className="friend-status-dot"
                                                             style={{
                                                                 width: 8,
                                                                 height: 8,
@@ -734,7 +739,7 @@ export default function FriendsPage({ f7router }) {
                                                                 display: 'inline-block',
                                                             }}
                                                         />
-                                                        {isOnline ? 'Online' : 'Offline'}
+                                                        <span className="friend-status-text">{isOnline ? 'Online' : 'Offline'}</span>
                                                     </span>
                                                     <Button small outline onClick={() => removeFriend(fr)}>
                                                         Entfernen

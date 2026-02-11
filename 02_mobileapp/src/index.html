@@ -1,31 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 
 <head>
   <meta charset="utf-8">
-  <!--
-  Customize this policy to fit your own app's needs. For more guidance, please refer to the docs:
-      https://cordova.apache.org/docs/en/latest/
-  Some notes:
-    * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
-    * Disables use of inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
-      * Enable inline JS: add 'unsafe-inline' to default-src
-  -->
+
   <meta http-equiv="Content-Security-Policy"
     content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: content:">
+
   <meta name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 
-  <meta name="theme-color" content="#fff">
-  <meta name="format-detection" content="telephone=no">
-  <meta name="msapplication-tap-highlight" content="no">
   <title>Sudoku</title>
 
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="icon" href="icons/favicon.png">
+  <!-- PWA / Android / Chrome -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f2d34">
 
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sudoku">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- iOS Icon (wichtig: iOS liest NICHT aus dem Manifest) -->
+  <link rel="apple-touch-icon" href="/assets/manifest-icon-192.png">
+
+  <!-- Favicon (Browser Tab) -->
+  <link rel="icon" type="image/png" href="/assets/manifest-icon-192.png">
+
+  <meta name="format-detection" content="telephone=no">
+  <meta name="msapplication-tap-highlight" content="no">
 
   <!-- built styles file will be auto injected -->
 </head>
