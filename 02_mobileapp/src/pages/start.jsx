@@ -24,10 +24,10 @@ export default function StartPage() {
           </p>
 
           <div className="start-screen__actions">
-            <Button fill large href={`${base}sudoku/?mode=daily`} className="start-screen__btn start-screen__btn--daily">
+            <Button fill large href="/sudoku/?mode=daily" className="start-screen__btn start-screen__btn--daily">
               Daily Sudoku starten
             </Button>
-            <Button outline large href={`${base}sudoku-menu/`} className="start-screen__btn start-screen__btn--menu">
+            <Button outline large href="/sudoku-menu/" className="start-screen__btn start-screen__btn--menu">
               Zum Sudoku-Menue
             </Button>
           </div>

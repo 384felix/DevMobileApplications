@@ -54,12 +54,13 @@ const MyApp = () => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
   });
+  const pushStateRoot = import.meta.env.BASE_URL?.startsWith('/') ? import.meta.env.BASE_URL : '/';
 
   const f7params = {
     name: 'Sudoku',
     theme: 'auto',
     pushState: true,
-    pushStateRoot: import.meta.env.BASE_URL,
+    pushStateRoot,
 
     colors: {
       primary: '#2b93bf',
