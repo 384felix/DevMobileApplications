@@ -59,7 +59,7 @@ const MyApp = () => {
     name: 'Sudoku',
     theme: 'auto',
     pushState: true,
-    pushStateRoot: '/',
+    pushStateRoot: import.meta.env.BASE_URL,
 
     colors: {
       primary: '#2b93bf',

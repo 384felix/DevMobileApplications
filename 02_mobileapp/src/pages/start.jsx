@@ -1,6 +1,8 @@
 import { Page, Block, Button } from 'framework7-react';
 
 export default function StartPage() {
+  const base = import.meta.env.BASE_URL || './';
+
   return (
     <Page name="start" className="start-screen-page">
       <div className="start-screen">
@@ -10,7 +12,7 @@ export default function StartPage() {
         <Block className="start-screen__card" strong inset>
           <img
             className="start-screen__logo"
-            src="/assets/manifest-icon-512.png"
+            src={`${base}assets/manifest-icon-512.png`}
             alt="Sudoku App Logo"
             loading="eager"
           />
@@ -22,10 +24,10 @@ export default function StartPage() {
           </p>
 
           <div className="start-screen__actions">
-            <Button fill large href="/sudoku/?mode=daily" className="start-screen__btn start-screen__btn--daily">
+            <Button fill large href={`${base}sudoku/?mode=daily`} className="start-screen__btn start-screen__btn--daily">
               Daily Sudoku starten
             </Button>
-            <Button outline large href="/sudoku-menu/" className="start-screen__btn start-screen__btn--menu">
+            <Button outline large href={`${base}sudoku-menu/`} className="start-screen__btn start-screen__btn--menu">
               Zum Sudoku-Menue
             </Button>
           </div>
