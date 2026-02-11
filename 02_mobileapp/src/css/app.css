@@ -172,7 +172,7 @@
 
 /* Framework7 ICON FONT explizit überschreiben */
 .navbar .right a.profile-btn i.f7-icons {
-    font-size: 36px !important;
+    font-size: 32px !important;
     /* <-- HIER wird er sichtbar groß */
     line-height: 1 !important;
     color: #e7f6ff !important;
@@ -198,6 +198,21 @@
 .ios .navbar .right a.link::after,
 .ios .navbar .right a.link::before {
     display: none !important;
+}
+
+.navbar .left a.link .icon,
+.navbar .left a.link i,
+.navbar .right a.link .icon,
+.navbar .right a.link i {
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #e7f6ff !important;
+}
+
+.ios .navbar .left a.link.icon-only,
+.ios .navbar .right a.link.icon-only {
+    background: transparent !important;
+    border-radius: 999px;
 }
 
 /* Status-Punkt */

@@ -47,7 +47,7 @@ export default function ProfileButton() {
 
     return (
         <Link href="/profile/" className="profile-btn" aria-label="Profil">
-            <i className="f7-icons profile-btn__icon">person_crop_circle</i>
+            <i className="f7-icons profile-btn__icon">person</i>
             {user && <span className={`profile-btn__dot ${online ? 'online' : 'offline'}`} />}
         </Link>
     );
