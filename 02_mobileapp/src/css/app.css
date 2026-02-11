@@ -14,6 +14,12 @@
     --app-surface-bg: rgba(252, 255, 255, 0.78);
     --app-surface-border: rgba(18, 78, 103, 0.16);
     --app-surface-text: #0d2d42;
+    --f7-bars-bg-color: #0b344a;
+    --f7-navbar-bg-color: #0b344a;
+    --f7-toolbar-bg-color: #0b344a;
+    --f7-bars-text-color: #e7f6ff;
+    --f7-bars-link-color: #e7f6ff;
+    --f7-touch-ripple-color: rgba(231, 246, 255, 0.2);
     --f7-tabbar-link-inactive-color: #f6fcff;
     --f7-tabbar-link-active-color: #86e3fb;
 }
@@ -47,6 +53,33 @@
 .toolbar-bottom {
     background: linear-gradient(145deg, var(--app-bar-1), var(--app-bar-2)) !important;
     border-top: 1px solid var(--app-bar-border) !important;
+}
+
+/* iOS adds extra overlay layers for bars; force same dark gradient there too */
+.ios .navbar,
+.ios .toolbar,
+.ios .toolbar-bottom,
+.ios .toolbar.tabbar,
+.ios .navbar-bg,
+.ios .toolbar-bg {
+    background: linear-gradient(145deg, var(--app-bar-1), var(--app-bar-2)) !important;
+}
+
+.ios .navbar::before,
+.ios .navbar::after,
+.ios .toolbar::before,
+.ios .toolbar::after,
+.ios .toolbar-bottom::before,
+.ios .toolbar-bottom::after,
+.ios .toolbar.tabbar::before,
+.ios .toolbar.tabbar::after {
+    background: linear-gradient(145deg, var(--app-bar-1), var(--app-bar-2)) !important;
+    border-color: transparent !important;
+}
+
+.ios .safe-area-top,
+.ios .safe-area-bottom {
+    background: linear-gradient(145deg, var(--app-bar-1), var(--app-bar-2)) !important;
 }
 
 .tabbar .link {
