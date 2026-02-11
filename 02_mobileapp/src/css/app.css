@@ -150,6 +150,7 @@
     height: 9px !important;
     border-radius: 999px !important;
     background: var(--f7-color-green) !important;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
 }
 
 .navbar .right a.profile-btn .profile-btn__dot.online {
@@ -157,7 +158,7 @@
 }
 
 .navbar .right a.profile-btn .profile-btn__dot.offline {
-    background: var(--f7-color-red) !important;
+    background: #9ca3af !important;
 }
 
 
