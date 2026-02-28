@@ -21,12 +21,40 @@ import {
 
 import { doc, getDoc, runTransaction, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
+import { Geolocation } from '@capacitor/geolocation';
 
 const AVATAR_IDS = Array.from({ length: 10 }, (_, i) => `Avatar_${String(i + 1).padStart(2, '0')}`);
 
 function avatarUrlFromId(avatarId) {
   if (!avatarId) return '';
   return `${import.meta.env.BASE_URL}Avatars/${avatarId}.png`;
+}
+
+function cityLabelFromLocation(lastLocation) {
+  if (!lastLocation) return 'Unbekannt';
+  const city = lastLocation.city || lastLocation.town || lastLocation.village || '';
+  const country = lastLocation.country || '';
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+  if (country) return country;
+  return 'Unbekannt';
+}
+
+async function reverseGeocodeCity(lat, lng) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+    lat
+  )}&lon=${encodeURIComponent(lng)}&zoom=10&addressdetails=1`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) throw new Error(`reverse geocode failed (${res.status})`);
+  const json = await res.json();
+  const a = json?.address || {};
+  const city = a.city || a.town || a.village || a.municipality || a.county || '';
+  const country = a.country || '';
+  return { city, country };
 }
 
 const ProfilePage = () => {
@@ -49,6 +77,8 @@ const ProfilePage = () => {
   // Profil-Daten (USERNAME ONLY)
   const [profileLoading, setProfileLoading] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('Unbekannt');
+  const [locationLoading, setLocationLoading] = useState(false);
   const [profile, setProfile] = useState({
     username: '',
     avatarId: AVATAR_IDS[0],
@@ -111,8 +141,37 @@ const ProfilePage = () => {
           username: data.username || '',
           avatarId: AVATAR_IDS.includes(data.avatarId) ? data.avatarId : AVATAR_IDS[0],
         });
+        const initialLabel = cityLabelFromLocation(data.lastLocation);
+        setLocationStatus(initialLabel);
+
+        const lat = data?.lastLocation?.lat;
+        const lng = data?.lastLocation?.lng;
+        if (initialLabel === 'Unbekannt' && Number.isFinite(lat) && Number.isFinite(lng)) {
+          try {
+            const geo = await reverseGeocodeCity(lat, lng);
+            const resolvedLabel = cityLabelFromLocation(geo);
+            if (resolvedLabel !== 'Unbekannt') {
+              setLocationStatus(resolvedLabel);
+              await setDoc(
+                doc(db, 'users', firebaseUser.uid),
+                {
+                  lastLocation: {
+                    ...(data.lastLocation || {}),
+                    city: geo.city || null,
+                    country: geo.country || null,
+                    updatedAt: serverTimestamp(),
+                  },
+                },
+                { merge: true }
+              );
+            }
+          } catch (e) {
+            console.error('[profile] load fallback reverse geocode failed', e);
+          }
+        }
       } else {
         setProfile({ username: '', avatarId: AVATAR_IDS[0] });
+        setLocationStatus('Unbekannt');
       }
     } catch (e) {
       console.error(e);
@@ -125,9 +184,83 @@ const ProfilePage = () => {
   useEffect(() => {
     if (!user) {
       setProfile({ username: '', avatarId: AVATAR_IDS[0] });
+      setLocationStatus('Unbekannt');
       return;
     }
     loadProfileFromFirebase(user);
+  }, [user]);
+
+  // Standort nur in Profilseite aktualisieren und als Stadt anzeigen
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const updateLocationCity = async () => {
+      setLocationLoading(true);
+      try {
+        const perms = await Geolocation.checkPermissions();
+        if (perms.location === 'denied' || perms.coarseLocation === 'denied') {
+          if (!cancelled) setLocationStatus('Freigabe verweigert');
+          return;
+        }
+        if (perms.location === 'prompt' || perms.coarseLocation === 'prompt') {
+          const req = await Geolocation.requestPermissions();
+          if (req.location === 'denied' || req.coarseLocation === 'denied') {
+            if (!cancelled) setLocationStatus('Freigabe verweigert');
+            return;
+          }
+        }
+
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        });
+        const lat = pos?.coords?.latitude;
+        const lng = pos?.coords?.longitude;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          if (!cancelled) setLocationStatus('Nicht verfügbar');
+          return;
+        }
+
+        let city = '';
+        let country = '';
+        try {
+          const geo = await reverseGeocodeCity(lat, lng);
+          city = geo.city;
+          country = geo.country;
+        } catch (e) {
+          console.error('[profile] reverse geocode failed', e);
+        }
+
+        const label = cityLabelFromLocation({ city, country });
+        if (!cancelled) setLocationStatus(label);
+
+        await setDoc(
+          doc(db, 'users', user.uid),
+          {
+            lastLocation: {
+              lat,
+              lng,
+              ...(city ? { city } : {}),
+              ...(country ? { country } : {}),
+              updatedAt: serverTimestamp(),
+            },
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('[profile] location update failed', e);
+        if (!cancelled) setLocationStatus('Nicht verfügbar');
+      } finally {
+        if (!cancelled) setLocationLoading(false);
+      }
+    };
+
+    updateLocationCity();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const canSaveProfile = useMemo(() => {
@@ -480,6 +613,10 @@ const ProfilePage = () => {
               }}
             />
             <span>{online ? 'Online' : 'Offline'}</span>
+            <span style={{ opacity: 0.45 }}>•</span>
+            <span>
+              Standort: {locationLoading ? 'wird ermittelt…' : locationStatus}
+            </span>
           </Block>
 
           {/* Header Card */}

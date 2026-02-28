@@ -21,6 +21,7 @@
   "dependencies": {
     "@capacitor/cli": "^8.0.1",
     "@capacitor/core": "^8.0.1",
+    "@capacitor/geolocation": "^8.1.0",
     "@capacitor/ios": "^8.0.1",
     "@capacitor/network": "^8.0.0",
     "dom7": "^4.0.6",

@@ -47,5 +47,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Wir nutzen deinen Standort, um deinen aktuellen Standortstatus in der App anzuzeigen.</string>
 </dict>
 </plist>

@@ -62,6 +62,41 @@ function avatarUrlFromId(avatarId) {
     return `${import.meta.env.BASE_URL}Avatars/${safeId}.png`;
 }
 
+function locationLabelFromProfile(profile) {
+    const loc = profile?.lastLocation || null;
+    if (!loc) return 'Unbekannt';
+    const city = (loc.city || loc.town || loc.village || '').trim();
+    const country = (loc.country || '').trim();
+    if (city && country) return `${city}, ${country}`;
+    if (city) return city;
+    if (country) return country;
+    return 'Unbekannt';
+}
+
+function hasCoords(lastLocation) {
+    const lat = lastLocation?.lat;
+    const lng = lastLocation?.lng;
+    return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+async function reverseGeocodeCity(lat, lng) {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+        lat
+    )}&lon=${encodeURIComponent(lng)}&zoom=10&addressdetails=1`;
+    const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`reverse geocode failed (${res.status})`);
+    const json = await res.json();
+    const a = json?.address || {};
+    const city = (a.city || a.town || a.village || a.municipality || a.county || '').trim();
+    const country = (a.country || '').trim();
+    if (city && country) return `${city}, ${country}`;
+    if (city) return city;
+    if (country) return country;
+    return 'Unbekannt';
+}
+
 // friendId deterministisch
 function makeFriendId(uidA, uidB) {
     return [uidA, uidB].sort().join('_');
@@ -86,7 +121,8 @@ export default function FriendsPage({ f7router }) {
 
     // Friends
     const [friendsDocs, setFriendsDocs] = useState([]);
-    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarId, online, lastSeen }
+    const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarId, online, lastSeen, lastLocation }
+    const [resolvedLocationLabels, setResolvedLocationLabels] = useState({}); // uid -> "Stadt, Land"
 
     // Auth listener
     useEffect(() => {
@@ -244,6 +280,7 @@ export default function FriendsPage({ f7router }) {
                             email: data.email || prev[uid]?.email || '',
                             online: !!data.online,
                             lastSeen: data.lastSeen || null,
+                            lastLocation: data.lastLocation || prev[uid]?.lastLocation || null,
                         },
                     }));
                 },
@@ -295,9 +332,17 @@ export default function FriendsPage({ f7router }) {
                             email: data.email || '',
                             online: !!data.online,
                             lastSeen: data.lastSeen || null,
+                            lastLocation: data.lastLocation || null,
                         };
                     } else {
-                        updates[uid] = { uid, username: '', avatarId: DEFAULT_AVATAR_ID, online: false, lastSeen: null };
+                        updates[uid] = {
+                            uid,
+                            username: '',
+                            avatarId: DEFAULT_AVATAR_ID,
+                            online: false,
+                            lastSeen: null,
+                            lastLocation: null,
+                        };
                     }
                 }
                 setFriendsProfiles((p) => ({ ...p, ...updates }));
@@ -308,6 +353,44 @@ export default function FriendsPage({ f7router }) {
         // absichtlich KEIN friendsProfiles im deps-array -> sonst loop
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [friendsDocs, incoming, outgoing, myUid]);
+
+    // -------------------------
+    // Fallback: Wenn nur Koordinaten da sind, Standortlabel clientseitig auflösen
+    // -------------------------
+    useEffect(() => {
+        const candidates = Object.entries(friendsProfiles)
+            .filter(([uid, p]) => {
+                if (resolvedLocationLabels[uid]) return false;
+                const label = locationLabelFromProfile(p);
+                return label === 'Unbekannt' && hasCoords(p?.lastLocation);
+            })
+            .map(([uid, p]) => ({ uid, loc: p.lastLocation }));
+
+        if (candidates.length === 0) return;
+
+        let cancelled = false;
+        (async () => {
+            const updates = {};
+            await Promise.all(
+                candidates.map(async ({ uid, loc }) => {
+                    try {
+                        const label = await reverseGeocodeCity(loc.lat, loc.lng);
+                        updates[uid] = label || 'Unbekannt';
+                    } catch (e) {
+                        console.error('[friends] reverse geocode failed', uid, e);
+                        updates[uid] = 'Unbekannt';
+                    }
+                })
+            );
+            if (!cancelled && Object.keys(updates).length > 0) {
+                setResolvedLocationLabels((prev) => ({ ...prev, ...updates }));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [friendsProfiles, resolvedLocationLabels]);
 
     // -------------------------
     // Suche: nur usernameLower (exakt)
@@ -694,6 +777,12 @@ export default function FriendsPage({ f7router }) {
                                     const isOnline = !!friendProfile.online && isFresh;
                                     const lastSeenLabel = isOnline ? 'Zuletzt online: jetzt' : formatLastSeenLabel(lastSeenMs, nowTs);
                                     const lastSeenText = lastSeenLabel.replace(/^Zuletzt online:\s*/i, '');
+                                    const rawLocationLabel = locationLabelFromProfile(friendProfile);
+                                    const locationLabel = resolvedLocationLabels[otherUid] || rawLocationLabel;
+                                    const locationLoading =
+                                        rawLocationLabel === 'Unbekannt'
+                                        && hasCoords(friendProfile?.lastLocation)
+                                        && !resolvedLocationLabels[otherUid];
                                     const avatarSrc = avatarUrlFromId(friendProfile.avatarId);
                                     return (
                                         <ListItem
@@ -711,6 +800,13 @@ export default function FriendsPage({ f7router }) {
                                                             <span className="last-seen-prefix-full">Zuletzt online: </span>
                                                             <span className="last-seen-prefix-short">Zul. onl. </span>
                                                             <span>{lastSeenText}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: 12, opacity: 0.72 }}>
+                                                            {locationLoading
+                                                                ? 'Standort: wird ermittelt…'
+                                                                : locationLabel !== 'Unbekannt'
+                                                                    ? locationLabel
+                                                                    : 'Standort: Unbekannt'}
                                                         </div>
                                                     </div>
                                                 </div>
