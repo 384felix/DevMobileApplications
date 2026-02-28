@@ -247,6 +247,9 @@
 .navbar .right a.link {
     background: transparent !important;
     box-shadow: none !important;
+    text-decoration: none !important;
+    border: 0 !important;
+    outline: 0 !important;
 }
 
 .ios .navbar .left a.link:active,
@@ -270,12 +273,38 @@
     background: transparent !important;
     box-shadow: none !important;
     color: #e7f6ff !important;
+    text-decoration: none !important;
+    border: 0 !important;
 }
 
 .ios .navbar .left a.link.icon-only,
 .ios .navbar .right a.link.icon-only {
     background: transparent !important;
     border-radius: 999px;
+}
+
+/* iOS nav buttons: prevent white overlays / lines in Safari + PWA */
+.ios .navbar .left a.link,
+.ios .navbar .right a.link,
+.ios .navbar .right a.profile-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    text-decoration: none !important;
+    background-image: none !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ios .navbar .left a.link *,
+.ios .navbar .right a.link *,
+.ios .navbar .right a.profile-btn * {
+    text-decoration: none !important;
+    background-image: none !important;
+}
+
+.ios .navbar .left a.link .ripple-wave,
+.ios .navbar .right a.link .ripple-wave,
+.ios .navbar .right a.profile-btn .ripple-wave {
+    display: none !important;
 }
 
 /* Status-Punkt */
