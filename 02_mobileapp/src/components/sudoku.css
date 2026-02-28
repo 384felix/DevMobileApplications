@@ -4,16 +4,26 @@
    ========================================= */
 
 .sudoku-grid {
+    --sudoku-grid-size-effective: clamp(216px, var(--sudoku-grid-max-size, 480px), 480px);
+    min-width: 216px;
+    min-height: 216px;
+    flex: 0 0 auto;
     display: grid;
     grid-template-columns: repeat(9, 1fr);
     grid-template-rows: repeat(9, 1fr);
     gap: 2px;
-    width: 100%;
-    max-width: 480px;
-    /* verhindert, dass es am Tablet riesig wird */
+    width: var(--sudoku-grid-size-effective);
     margin: 0 auto;
     aspect-ratio: 1 / 1;
-    /* ✅ immer quadratisch */
+}
+
+.sudoku-grid-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 /* Standard (LIGHT MODE) */
@@ -25,7 +35,7 @@
     align-items: center;
     justify-content: center;
 
-    font-size: 18px;
+    font-size: clamp(12px, calc(var(--sudoku-grid-size-effective) / 27), 18px);
     font-weight: 600;
 
     border: 1px solid #d1d5db;

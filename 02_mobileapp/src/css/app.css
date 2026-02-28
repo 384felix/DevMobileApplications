@@ -757,3 +757,154 @@
         display: none;
     }
 }
+
+/* Friends + Leaderboard: keep top spacing coupled to navbar height */
+.page[data-name="friends"] .page-content,
+.page[data-name="leaderboard"] .page-content,
+.page[data-name="sudoku-list"] .page-content {
+    padding-top: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top)) !important;
+    transition: padding-top 240ms ease;
+}
+
+/* Keep the first content gap constant across all viewport heights */
+.page[data-name="friends"] .page-content>.block-title:first-child,
+.page[data-name="friends"] .page-content>.block:first-child,
+.page[data-name="leaderboard"] .page-content>.block-title:first-child,
+.page[data-name="leaderboard"] .page-content>.block:first-child,
+.page[data-name="sudoku-list"] .page-content>.block-title:first-child,
+.page[data-name="sudoku-list"] .page-content>.block:first-child {
+    margin-top: 10px !important;
+}
+
+/* Sudoku list: slightly tighter first content offset under the top bar */
+.page[data-name="sudoku-list"] .page-content>.block-title:first-child,
+.page[data-name="sudoku-list"] .page-content>.block:first-child,
+.page[data-name="sudoku-list"] .page-content>.list:first-child {
+    margin-top: 6px !important;
+}
+
+/* Sudoku page: keep board visible for both narrow and short viewports */
+.page[data-name="sudoku"] {
+    --sudoku-grid-max-size: min(92vw, calc(100dvh - var(--app-bar-height-fluid) - 290px));
+}
+
+.page[data-name="sudoku"] .page-content {
+    padding-top: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top)) !important;
+}
+
+.page[data-name="sudoku"] .page-content>.block:first-child {
+    margin-top: 8px !important;
+}
+
+.sudoku-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sudoku-meta__mode {
+    font-weight: 700;
+}
+
+.sudoku-meta__status {
+    opacity: 0.72;
+}
+
+.sudoku-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+@media (max-height: 700px) {
+    .page[data-name="sudoku"] {
+        --sudoku-grid-max-size: min(92vw, calc(100dvh - var(--app-bar-height-fluid) - 250px));
+    }
+
+    .sudoku-meta {
+        gap: 8px;
+        font-size: 13px;
+    }
+
+    .sudoku-actions {
+        margin-top: 8px;
+        gap: 6px;
+    }
+}
+
+@media (max-height: 590px) {
+    .page[data-name="sudoku"] {
+        --sudoku-grid-max-size: min(92vw, calc(100dvh - var(--app-bar-height-fluid) - 210px));
+    }
+
+    .sudoku-meta {
+        font-size: 12px;
+    }
+
+    .sudoku-meta__status {
+        display: none;
+    }
+
+    .sudoku-actions-block {
+        margin-top: 0 !important;
+        margin-bottom: 6px !important;
+    }
+}
+
+@media (max-height: 500px) {
+    .page[data-name="sudoku"] {
+        --sudoku-grid-max-size: min(94vw, calc(100dvh - (var(--app-bar-height-fluid) * 2) - 110px));
+    }
+
+    .sudoku-actions .button {
+        min-height: 30px;
+        font-size: 11px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+}
+
+/* Landscape/low-height Sudoku mode */
+@media (orientation: landscape) and (max-height: 520px) {
+    .page[data-name="sudoku"] {
+        --sudoku-grid-max-size: min(96vw, calc(100dvh - (var(--app-bar-height-fluid) * 2) - 90px));
+    }
+
+    .page[data-name="sudoku"] .page-content {
+        padding-top: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) - 8px) !important;
+    }
+
+    .page[data-name="sudoku"] .sudoku-meta {
+        display: none !important;
+    }
+
+    .page[data-name="sudoku"] .sudoku-actions-block {
+        margin-top: 8px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .page[data-name="sudoku"] .sudoku-actions {
+        margin-top: 6px;
+        gap: 6px;
+    }
+
+    .page[data-name="sudoku"] .sudoku-actions .button {
+        min-height: 28px;
+        height: 28px;
+        font-size: 11px;
+        padding-left: 8px;
+        padding-right: 8px;
+        border-radius: 10px;
+    }
+
+    .page[data-name="sudoku"] .sudoku-board-block {
+        margin-top: 0 !important;
+        margin-bottom: 6px !important;
+    }
+
+    .page[data-name="sudoku"] .sudoku-help-list {
+        margin-bottom: 8px !important;
+    }
+}

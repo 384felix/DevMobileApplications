@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Page, Navbar, NavRight, Block, List, ListItem, Link, f7 } from 'framework7-react';
+import { Page, Navbar, NavRight, List, ListItem, Link, f7 } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../js/firebase';
@@ -203,48 +203,46 @@ export default function SudokuListPage(props) {
                     <ProfileButton />
                 </NavRight>
             </Navbar>
-            <Block strong inset>
-                <List inset>
-                    {items.map((idx) => {
-                        const solvedByFirebase = !!solvedSummary?.[difficulty]?.[String(idx)];
-                        const solvedBySave = !!progressMap?.[idx]?.solved;
-                        const isSolved = user ? (solvedByFirebase || solvedBySave) : !!solvedMap[`${difficulty}:${idx}`];
-                        const isInProgress = user ? !!progressMap?.[idx]?.inProgress : false;
-                        const statusLabel = isSolved ? 'Gelöst' : isInProgress ? 'In Bearbeitung' : 'Ungelöst';
-                        const statusClass = isSolved ? 'solved' : isInProgress ? 'in-progress' : 'unsolved';
-                        return (
-                            <ListItem
-                                key={`${difficulty}-${idx}`}
-                                title={`Sudoku ${idx + 1}`}
-                                after={
-                                    <span className={`sudoku-status ${statusClass}`}>
-                                        {statusLabel}
-                                    </span>
-                                }
-                                link
-                                className={`sudoku-list-item ${statusClass}`}
-                                onClick={(e) => {
-                                    // - Auswahl eines konkreten Sudokus (Index 0..9)
-                                    console.log('[SudokuList] click puzzle', { difficulty, idx });
-                                    if (e?.preventDefault) e.preventDefault();
-                                    try {
-                                        sessionStorage.setItem(
-                                            'sudokuSelection',
-                                            JSON.stringify({ mode: 'offline', difficulty, puzzleIndex: String(idx) })
-                                        );
-                                    } catch {
-                                        // ignore
-                                    }
-                                    f7.views.main?.router.navigate(
-                                        `/sudoku/?mode=offline&difficulty=${difficulty}&puzzleIndex=${idx}`,
-                                        { reloadCurrent: true, ignoreCache: true }
+            <List inset strong>
+                {items.map((idx) => {
+                    const solvedByFirebase = !!solvedSummary?.[difficulty]?.[String(idx)];
+                    const solvedBySave = !!progressMap?.[idx]?.solved;
+                    const isSolved = user ? (solvedByFirebase || solvedBySave) : !!solvedMap[`${difficulty}:${idx}`];
+                    const isInProgress = user ? !!progressMap?.[idx]?.inProgress : false;
+                    const statusLabel = isSolved ? 'Gelöst' : isInProgress ? 'In Bearbeitung' : 'Ungelöst';
+                    const statusClass = isSolved ? 'solved' : isInProgress ? 'in-progress' : 'unsolved';
+                    return (
+                        <ListItem
+                            key={`${difficulty}-${idx}`}
+                            title={`Sudoku ${idx + 1}`}
+                            after={
+                                <span className={`sudoku-status ${statusClass}`}>
+                                    {statusLabel}
+                                </span>
+                            }
+                            link
+                            className={`sudoku-list-item ${statusClass}`}
+                            onClick={(e) => {
+                                // - Auswahl eines konkreten Sudokus (Index 0..9)
+                                console.log('[SudokuList] click puzzle', { difficulty, idx });
+                                if (e?.preventDefault) e.preventDefault();
+                                try {
+                                    sessionStorage.setItem(
+                                        'sudokuSelection',
+                                        JSON.stringify({ mode: 'offline', difficulty, puzzleIndex: String(idx) })
                                     );
-                                }}
-                            />
-                        );
-                    })}
-                </List>
-            </Block>
+                                } catch {
+                                    // ignore
+                                }
+                                f7.views.main?.router.navigate(
+                                    `/sudoku/?mode=offline&difficulty=${difficulty}&puzzleIndex=${idx}`,
+                                    { reloadCurrent: true, ignoreCache: true }
+                                );
+                            }}
+                        />
+                    );
+                })}
+            </List>
         </Page>
     );
 }

@@ -6,7 +6,6 @@ import {
     NavRight,
     NavTitle,
     Block,
-    BlockFooter,
     List,
     ListItem,
     Button,
@@ -406,6 +405,13 @@ export default function SudokuPage(props) {
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
     const hasUnsavedGridChangesRef = useRef(false);
+
+    useEffect(() => {
+        document.body.classList.add('in-sudoku-page');
+        return () => {
+            document.body.classList.remove('in-sudoku-page');
+        };
+    }, []);
 
     // -------------------------
     const initialPickRef = useRef(null);
@@ -917,8 +923,8 @@ export default function SudokuPage(props) {
                 </NavRight>
             </Navbar>
 
-            <Block strong inset style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <div>
+            <Block strong inset className="sudoku-meta">
+                <div className="sudoku-meta__item">
                     {user ? (
                         <>
                             Eingeloggt als: <b>{user.email}</b>
@@ -929,14 +935,16 @@ export default function SudokuPage(props) {
                         </>
                     )}
                 </div>
-                <div style={{ fontWeight: 700 }}>
+                <div className="sudoku-meta__item sudoku-meta__mode">
                     Modus: {mode === 'daily' ? `Tägliches Sudoku (${getLocalDateKey()})` : 'Offline'}
                 </div>
-                <div style={{ opacity: 0.7 }}>{loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}</div>
+                <div className="sudoku-meta__item sudoku-meta__status">
+                    {loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}
+                </div>
             </Block>
 
-            <Block>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <Block className="sudoku-actions-block">
+                <div className="sudoku-actions">
                     {canUseSolutionDebug && (
                         <Button outline onClick={fillWithSolution}>
                             Debug: Lösung einfügen
@@ -958,7 +966,7 @@ export default function SudokuPage(props) {
                 </div>
             </Block>
 
-            <Block>
+            <Block className="sudoku-board-block">
                 {/* - Sudoku-Brett */}
                 <SudokuGrid
                     grid={grid}
@@ -996,7 +1004,7 @@ export default function SudokuPage(props) {
                 />
             </Block>
 
-            <List inset strong>
+            <List inset strong className="sudoku-help-list">
                 <ListItem
                     checkbox
                     checked={helpEnabled}
@@ -1005,11 +1013,6 @@ export default function SudokuPage(props) {
                     onChange={(e) => setHelpEnabled(e.target.checked)}
                 />
             </List>
-
-            <BlockFooter>
-                Jetzt speichert Firestore: <b>gridStr</b> und <b>puzzleStr</b> (81 Zeichen). In Firebase solltest du eine Collection{' '}
-                <b>sudokuSaves</b> sehen.
-            </BlockFooter>
 
         </Page>
     );
