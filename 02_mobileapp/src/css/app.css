@@ -783,6 +783,40 @@
     margin-top: 6px !important;
 }
 
+/* iOS PWA (Home Screen standalone) notch/statusbar fix */
+@supports (padding-top: env(safe-area-inset-top)) {
+    @media (display-mode: standalone) {
+        :root {
+            --app-ios-pwa-top-extra: 8px;
+        }
+
+        .ios .navbar,
+        .ios .navbar-inner {
+            min-height: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
+            height: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
+            padding-top: calc(env(safe-area-inset-top) + 2px) !important;
+        }
+
+        .ios .navbar .title,
+        .ios .navbar .title.sudoku-title-centered {
+            padding-top: 2px !important;
+            line-height: 1.2 !important;
+        }
+
+        .ios .navbar .left,
+        .ios .navbar .right {
+            padding-top: 2px;
+        }
+
+        .page[data-name="friends"] .page-content,
+        .page[data-name="leaderboard"] .page-content,
+        .page[data-name="sudoku-list"] .page-content,
+        .page[data-name="sudoku"] .page-content {
+            padding-top: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
+        }
+    }
+}
+
 /* Sudoku page: keep board visible for both narrow and short viewports */
 .page[data-name="sudoku"] {
     --sudoku-grid-max-size: min(92vw, calc(100dvh - var(--app-bar-height-fluid) - 290px));
