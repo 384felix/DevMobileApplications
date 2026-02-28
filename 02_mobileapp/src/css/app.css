@@ -783,29 +783,77 @@
     margin-top: 6px !important;
 }
 
+/* Leaderboard feed typography responsive (low-height + landscape) */
+.page[data-name="leaderboard"] .list .item-title {
+    font-size: clamp(13px, 1.8vh, 15px);
+    line-height: 1.3;
+}
+
+.page[data-name="leaderboard"] .list .item-after {
+    font-size: clamp(11px, 1.55vh, 13px);
+    line-height: 1.2;
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+    .page[data-name="leaderboard"] .list .item-title {
+        font-size: 12px;
+        line-height: 1.22;
+    }
+
+    .page[data-name="leaderboard"] .list .item-after {
+        font-size: 10px;
+        line-height: 1.15;
+    }
+
+    .page[data-name="leaderboard"] .list .item-content {
+        min-height: 38px;
+    }
+}
+
 /* iOS PWA (Home Screen standalone) notch/statusbar fix */
 @supports (padding-top: env(safe-area-inset-top)) {
     @media (display-mode: standalone) {
         :root {
-            --app-ios-pwa-top-extra: 8px;
+            --app-ios-pwa-top-extra: 2px;
         }
 
         .ios .navbar,
         .ios .navbar-inner {
             min-height: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
             height: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
-            padding-top: calc(env(safe-area-inset-top) + 2px) !important;
+            padding-top: env(safe-area-inset-top) !important;
         }
 
         .ios .navbar .title,
         .ios .navbar .title.sudoku-title-centered {
-            padding-top: 2px !important;
+            padding-top: 0 !important;
             line-height: 1.2 !important;
         }
 
         .ios .navbar .left,
         .ios .navbar .right {
-            padding-top: 2px;
+            padding-top: 0;
+        }
+
+        /* iOS PWA: keep nav actions clean (no white pills behind back/profile) */
+        .ios .navbar .left a.link,
+        .ios .navbar .right a.link,
+        .ios .navbar .right a.profile-btn,
+        .ios .navbar .right a.profile-btn i,
+        .ios .navbar .left a.link i {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            -webkit-appearance: none;
+            appearance: none;
+            color: #e7f6ff !important;
+        }
+
+        .ios .navbar .left a.link::before,
+        .ios .navbar .left a.link::after,
+        .ios .navbar .right a.link::before,
+        .ios .navbar .right a.link::after {
+            display: none !important;
         }
 
         .page[data-name="friends"] .page-content,
@@ -813,6 +861,19 @@
         .page[data-name="sudoku-list"] .page-content,
         .page[data-name="sudoku"] .page-content {
             padding-top: calc(var(--app-bar-height-fluid) + env(safe-area-inset-top) + var(--app-ios-pwa-top-extra)) !important;
+        }
+    }
+
+    @media (display-mode: standalone) and (orientation: landscape) and (max-height: 520px) {
+        .ios .navbar,
+        .ios .navbar-inner {
+            padding-top: calc(env(safe-area-inset-top) + 3px) !important;
+        }
+
+        .ios .navbar .left,
+        .ios .navbar .right,
+        .ios .navbar .title {
+            padding-top: 2px;
         }
     }
 }
