@@ -26,7 +26,7 @@ export default function SudokuMenuPage() {
                         : lastPlayed.difficulty === 'hard'
                             ? 'Hard'
                             : 'Sudoku';
-            const idx = Number.isFinite(lastPlayed.index) ? ` #${lastPlayed.index + 1}` : '';
+            const idx = Number.isFinite(lastPlayed.index) ? `${lastPlayed.index + 1}` : '';
             return `${diff}${idx}`;
         }
         return 'Keine';
@@ -50,37 +50,18 @@ export default function SudokuMenuPage() {
                     <ProfileButton />
                 </NavRight>
             </Navbar>
-            <div
-                style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '16px',
-                    boxSizing: 'border-box',
-                }}
-            >
+            <div className="sudoku-menu-layout">
                 {/* - Zentrale Auswahl für Daily / Offline */}
-                <Block
-                    strong
-                    inset
-                    style={{
-                        width: 'min(92vw, 340px)',
-                        display: 'grid',
-                        gap: 12,
-                        textAlign: 'center',
-                    }}
-                >
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>Zuletzt bearbeitet</div>
-                    <div style={{ fontWeight: 700 }}>{lastPlayedLabel}</div>
+                <Block strong inset className="sudoku-menu-card">
+                    <div className="sudoku-menu-last-line">Zuletzt bearbeitet: {lastPlayedLabel}</div>
 
-                    <div style={{ fontWeight: 700 }}>Tägliches Sudoku</div>
+                    <div className="sudoku-menu-section-title">Tägliches Sudoku</div>
                     <Button fill onClick={() => goToSudoku({ mode: 'daily' })}>
                         Starten
                     </Button>
 
-                    <div style={{ marginTop: 8, fontWeight: 700 }}>Offline Sudokus</div>
-                    <div style={{ display: 'grid', gap: 8 }}>
+                    <div className="sudoku-menu-section-title sudoku-menu-section-title--offline">Offline Sudokus</div>
+                    <div className="sudoku-menu-difficulties">
                         <Button outline onClick={() => goToList('easy')}>
                             Easy
                         </Button>

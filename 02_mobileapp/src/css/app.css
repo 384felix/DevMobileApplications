@@ -580,6 +580,144 @@
     top: 170px;
 }
 
+/* Sudoku menu page */
+.sudoku-menu-layout {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.sudoku-menu-card {
+    width: min(92vw, 340px);
+    display: grid;
+    gap: 12px;
+    text-align: center;
+}
+
+.sudoku-menu-subtitle {
+    font-size: 13px;
+    opacity: 0.72;
+}
+
+.sudoku-menu-last-played {
+    font-size: 13px;
+    opacity: 0.72;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sudoku-menu-last-line {
+    font-size: 13px;
+    opacity: 0.72;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sudoku-menu-section-title {
+    font-weight: 700;
+}
+
+.sudoku-menu-section-title--offline {
+    margin-top: 8px;
+}
+
+.sudoku-menu-difficulties {
+    display: grid;
+    gap: 8px;
+}
+
+/* Low-height responsive behavior for start + menu */
+@media (max-height: 620px) {
+    .start-screen {
+        width: min(94vw, 700px);
+    }
+
+    .start-screen__card {
+        border-radius: 20px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+
+    .start-screen__logo {
+        width: 84px;
+        height: 84px;
+        margin-bottom: 8px;
+    }
+
+    .start-screen__title {
+        font-size: 30px;
+    }
+
+    .start-screen__text {
+        margin-top: 8px;
+        font-size: 14px;
+    }
+
+    .start-screen__actions {
+        margin-top: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .sudoku-menu-card {
+        width: min(95vw, 520px);
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+        text-align: center;
+        align-items: stretch;
+    }
+
+    .sudoku-menu-section-title--offline {
+        margin-top: 0;
+        text-align: center;
+    }
+
+    .sudoku-menu-difficulties {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+}
+
+@media (max-height: 500px) {
+    .start-screen__eyebrow {
+        font-size: 10px;
+        margin-bottom: 4px;
+    }
+
+    .start-screen__title {
+        font-size: 24px;
+    }
+
+    .start-screen__text {
+        font-size: 12px;
+        margin-top: 6px;
+    }
+
+    .start-screen__actions {
+        margin-top: 8px;
+    }
+
+    .sudoku-menu-layout {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .sudoku-menu-card {
+        gap: 8px;
+    }
+
+    .sudoku-menu-subtitle {
+        font-size: 12px;
+    }
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
