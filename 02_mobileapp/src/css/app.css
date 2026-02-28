@@ -22,6 +22,11 @@
     --f7-touch-ripple-color: rgba(231, 246, 255, 0.2);
     --f7-tabbar-link-inactive-color: #f6fcff;
     --f7-tabbar-link-active-color: #86e3fb;
+    --app-bar-height-fluid: clamp(50px, 7.4vh, 64px);
+    --app-title-size-fluid: clamp(14px, 2.7vh, 19px);
+    --app-tab-label-size-fluid: clamp(11px, 1.7vh, 13px);
+    --app-profile-btn-size-fluid: clamp(38px, 7.2vh, 52px);
+    --app-profile-icon-size-fluid: clamp(22px, 4.8vh, 32px);
 }
 
 /* Framework7 page surfaces */
@@ -124,6 +129,60 @@
     color: var(--app-bar-text-active) !important;
 }
 
+/* Smooth compact mode for short viewports (landscape phones, low-height windows) */
+.navbar,
+.toolbar.tabbar,
+.toolbar-bottom {
+    min-height: var(--app-bar-height-fluid) !important;
+    height: var(--app-bar-height-fluid) !important;
+    transition: min-height 240ms ease, height 240ms ease, padding 240ms ease;
+}
+
+.navbar-inner,
+.toolbar-inner {
+    min-height: var(--app-bar-height-fluid) !important;
+    transition: min-height 240ms ease, padding 240ms ease;
+}
+
+.navbar .title,
+.navbar .title.sudoku-title-centered {
+    font-size: var(--app-title-size-fluid) !important;
+    transition: font-size 240ms ease, padding 240ms ease;
+}
+
+.tabbar .link i {
+    font-size: clamp(15px, 2.8vh, 21px) !important;
+    line-height: 1 !important;
+    margin-bottom: 0 !important;
+    transition: font-size 240ms ease, opacity 220ms ease, transform 220ms ease, height 220ms ease;
+}
+
+.tabbar-label,
+.toolbar .link span {
+    font-size: var(--app-tab-label-size-fluid) !important;
+    transition: font-size 240ms ease, transform 220ms ease;
+}
+
+.toolbar.tabbar .link,
+.toolbar-bottom .link {
+    min-height: 100%;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    transition: padding 240ms ease, gap 240ms ease;
+}
+
+.toolbar.tabbar .tabbar-label,
+.toolbar-bottom .tabbar-label {
+    display: block;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: visible;
+}
+
 /* Content surfaces (cards/blocks/lists) */
 .block-strong,
 .ios .block-strong,
@@ -154,10 +213,10 @@
 
 /* Link selbst */
 .navbar .right a.profile-btn {
-    width: 52px !important;
-    height: 52px !important;
-    min-width: 52px !important;
-    min-height: 52px !important;
+    width: var(--app-profile-btn-size-fluid) !important;
+    height: var(--app-profile-btn-size-fluid) !important;
+    min-width: var(--app-profile-btn-size-fluid) !important;
+    min-height: var(--app-profile-btn-size-fluid) !important;
     padding: 0 !important;
 
     display: flex !important;
@@ -172,10 +231,11 @@
 
 /* Framework7 ICON FONT explizit überschreiben */
 .navbar .right a.profile-btn i.f7-icons {
-    font-size: 32px !important;
+    font-size: var(--app-profile-icon-size-fluid) !important;
     /* <-- HIER wird er sichtbar groß */
     line-height: 1 !important;
     color: #e7f6ff !important;
+    transition: font-size 240ms ease;
 }
 
 /* iOS link active/highlight layer can look white - force dark state */
@@ -264,6 +324,38 @@
     padding: 0 56px;
     box-sizing: border-box;
     pointer-events: none;
+}
+
+@media (max-height: 560px) {
+    :root {
+        --app-bar-height-fluid: clamp(40px, 8vh, 48px);
+        --app-title-size-fluid: clamp(13px, 2.4vh, 16px);
+        --app-tab-label-size-fluid: clamp(10px, 1.9vh, 12px);
+        --app-profile-btn-size-fluid: clamp(34px, 6.4vh, 42px);
+        --app-profile-icon-size-fluid: clamp(19px, 4vh, 25px);
+    }
+}
+
+@media (max-height: 460px) {
+    .toolbar.tabbar .link i,
+    .toolbar-bottom .link i {
+        opacity: 0;
+        transform: translateY(-5px) scale(0.8);
+        font-size: 0 !important;
+        height: 0 !important;
+        margin: 0 !important;
+        line-height: 0 !important;
+    }
+
+    .toolbar.tabbar .tabbar-label,
+    .toolbar-bottom .tabbar-label {
+        transform: translateY(-1px);
+        letter-spacing: 0.1px;
+    }
+
+    .tabbar .link.friends-tab .badge {
+        top: 3px;
+    }
 }
 
 /* App Loading Screen */
