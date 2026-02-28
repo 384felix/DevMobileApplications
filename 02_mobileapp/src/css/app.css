@@ -697,6 +697,129 @@
     font-size: 13px;
 }
 
+.leaderboard-filters {
+    display: grid;
+    gap: 8px;
+}
+
+.leaderboard-view-switch {
+    display: flex;
+    gap: 8px;
+}
+
+.leaderboard-filter-title {
+    margin: 8px 16px 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    opacity: 0.72;
+    text-transform: uppercase;
+}
+
+.leaderboard-filters__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.leaderboard-row--me .item-title {
+    font-weight: 800;
+}
+
+.page[data-name="leaderboard"] .list.inset.strong {
+    overflow: hidden;
+}
+
+.leaderboard-table-head .item-content {
+    min-height: 34px !important;
+    background: rgba(9, 43, 61, 0.08);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.leaderboard-table-head .item-title,
+.leaderboard-table-head .item-after {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    opacity: 0.76;
+    text-transform: uppercase;
+    letter-spacing: 0.25px;
+}
+
+.leaderboard-points-legend {
+    font-size: 12px;
+    opacity: 0.78;
+}
+
+.feed-reaction-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.feed-reaction-btn {
+    border: 1px solid rgba(13, 63, 90, 0.28);
+    background: rgba(255, 255, 255, 0.65);
+    color: #0b344a;
+    border-radius: 999px;
+    min-width: 28px;
+    height: 24px;
+    line-height: 1;
+    padding: 0 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.feed-reaction-btn.is-active {
+    background: rgba(134, 227, 251, 0.3);
+    border-color: rgba(11, 122, 164, 0.6);
+}
+
+.feed-reaction-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.feed-reaction-count {
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0.82;
+}
+
+.profile-completion-card {
+    display: grid;
+    gap: 8px;
+}
+
+.profile-completion-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.profile-completion-card__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 13px;
+    opacity: 0.88;
+}
+
+.profile-completion-card__items .is-done {
+    color: #0b6146;
+    font-weight: 600;
+}
+
+.button:focus-visible,
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid #0b7aa4 !important;
+    outline-offset: 2px !important;
+}
+
 .sudoku-menu-section-title {
     font-weight: 700;
 }

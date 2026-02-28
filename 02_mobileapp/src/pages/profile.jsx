@@ -7,7 +7,6 @@ import {
   BlockTitle,
   List,
   ListInput,
-  ListButton,
   Button,
   f7,
 } from 'framework7-react';
@@ -80,6 +79,7 @@ const ProfilePage = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [locationStatus, setLocationStatus] = useState('Unbekannt');
   const [locationLoading, setLocationLoading] = useState(false);
+  const [locationPermission, setLocationPermission] = useState('unknown');
   const [profile, setProfile] = useState({
     username: '',
     avatarId: AVATAR_IDS[0],
@@ -140,7 +140,7 @@ const ProfilePage = () => {
         const data = snap.data();
         setProfile({
           username: data.username || '',
-          avatarId: AVATAR_IDS.includes(data.avatarId) ? data.avatarId : AVATAR_IDS[0],
+          avatarId: AVATAR_IDS.includes(data.avatarId) ? data.avatarId : null,
         });
         const initialLabel = cityLabelFromLocation(data.lastLocation);
         setLocationStatus(initialLabel);
@@ -186,6 +186,7 @@ const ProfilePage = () => {
     if (!user) {
       setProfile({ username: '', avatarId: AVATAR_IDS[0] });
       setLocationStatus('Unbekannt');
+      setLocationPermission('unknown');
       return;
     }
     loadProfileFromFirebase(user);
@@ -201,16 +202,19 @@ const ProfilePage = () => {
       try {
         const perms = await Geolocation.checkPermissions();
         if (perms.location === 'denied' || perms.coarseLocation === 'denied') {
+          setLocationPermission('denied');
           if (!cancelled) setLocationStatus('Freigabe verweigert');
           return;
         }
         if (perms.location === 'prompt' || perms.coarseLocation === 'prompt') {
           const req = await Geolocation.requestPermissions();
           if (req.location === 'denied' || req.coarseLocation === 'denied') {
+            setLocationPermission('denied');
             if (!cancelled) setLocationStatus('Freigabe verweigert');
             return;
           }
         }
+        setLocationPermission('granted');
 
         const pos = await Geolocation.getCurrentPosition({
           enableHighAccuracy: true,
@@ -252,6 +256,7 @@ const ProfilePage = () => {
         );
       } catch (e) {
         console.error('[profile] location update failed', e);
+        setLocationPermission((prev) => (prev === 'denied' ? prev : 'unknown'));
         if (!cancelled) setLocationStatus('Nicht verfügbar');
       } finally {
         if (!cancelled) setLocationLoading(false);
@@ -269,6 +274,22 @@ const ProfilePage = () => {
     if (!profile.username.trim()) return false;
     return true;
   }, [user, profile.username]);
+
+  const profileCompletion = useMemo(() => {
+    const usernameReady = !!profile.username?.trim();
+    const avatarReady = !!profile.avatarId;
+    const locationReady =
+      locationPermission === 'granted' ||
+      (locationStatus &&
+        !['Unbekannt', 'Nicht verfügbar', 'Freigabe verweigert'].includes(locationStatus));
+    const score = [usernameReady, avatarReady, locationReady].filter(Boolean).length;
+    return {
+      score,
+      usernameReady,
+      avatarReady,
+      locationReady,
+    };
+  }, [profile.username, profile.avatarId, locationPermission, locationStatus]);
 
   // ---- Login/Register/Logout
   const handleLogin = async () => {
@@ -483,7 +504,7 @@ const ProfilePage = () => {
             username: usernameRaw,
             usernameLower,
             email: user.email || '',
-            avatarId: AVATAR_IDS.includes(profile.avatarId) ? profile.avatarId : AVATAR_IDS[0],
+            avatarId: AVATAR_IDS.includes(profile.avatarId) ? profile.avatarId : null,
             updatedAt: serverTimestamp(),
             createdAt: current.createdAt || serverTimestamp(),
           },
@@ -628,13 +649,50 @@ const ProfilePage = () => {
             </span>
           </Block>
 
+          <Block strong inset className="profile-completion-card" role="status" aria-live="polite">
+            <div className="profile-completion-card__head">
+              <strong>Profil vollständig</strong>
+              <span>{profileCompletion.score}/3</span>
+            </div>
+            <div className="profile-completion-card__items">
+              <span className={profileCompletion.usernameReady ? 'is-done' : ''}>
+                {profileCompletion.usernameReady ? '✓' : '○'} Username
+              </span>
+              <span className={profileCompletion.avatarReady ? 'is-done' : ''}>
+                {profileCompletion.avatarReady ? '✓' : '○'} Avatar
+              </span>
+              <span className={profileCompletion.locationReady ? 'is-done' : ''}>
+                {profileCompletion.locationReady ? '✓' : '○'} Standortfreigabe
+              </span>
+            </div>
+          </Block>
+
           {/* Header Card */}
           <Block strong inset style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <img
-              src={avatarUrlFromId(profile.avatarId)}
-              alt="Avatar"
-              style={{ width: 56, height: 56, borderRadius: 999, objectFit: 'cover' }}
-            />
+            {profile.avatarId ? (
+              <img
+                src={avatarUrlFromId(profile.avatarId)}
+                alt="Avatar"
+                style={{ width: 56, height: 56, borderRadius: 999, objectFit: 'cover' }}
+              />
+            ) : (
+              <div
+                aria-label="Kein Avatar"
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  border: '1px dashed rgba(11, 52, 74, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  opacity: 0.7,
+                }}
+              >
+                Kein
+              </div>
+            )}
 
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18 }}>
@@ -660,6 +718,17 @@ const ProfilePage = () => {
 
           <BlockTitle>Avatar auswählen</BlockTitle>
           <Block strong inset>
+            <div style={{ marginBottom: 10 }}>
+              <Button
+                small
+                outline
+                color="red"
+                onClick={() => setProfile((p) => ({ ...p, avatarId: null }))}
+                disabled={!profile.avatarId}
+              >
+                Avatar entfernen
+              </Button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
               {AVATAR_IDS.map((avatarId) => {
                 const selected = profile.avatarId === avatarId;
