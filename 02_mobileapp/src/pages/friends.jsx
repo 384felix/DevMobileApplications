@@ -766,7 +766,17 @@ export default function FriendsPage({ f7router }) {
                     <BlockTitle>Meine Freunde</BlockTitle>
                     <Block strong inset>
                         {friendsDocs.length === 0 ? (
-                            <div style={{ opacity: 0.7 }}>Du hast noch keine Freunde.</div>
+                            <div className="empty-state-card">
+                                <div className="empty-state-title">Du hast noch keine Freunde</div>
+                                <div className="empty-state-text">Nutze die Suche oben, um direkt jemanden hinzuzufügen.</div>
+                                <Button
+                                    small
+                                    fill
+                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                >
+                                    Freunde suchen
+                                </Button>
+                            </div>
                         ) : (
                             <List inset strong style={{ margin: 0 }}>
                                 {friendsDocs.map((fr) => {

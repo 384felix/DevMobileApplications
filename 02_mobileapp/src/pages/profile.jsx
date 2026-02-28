@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Page,
   Navbar,
+  NavRight,
   Block,
   BlockTitle,
   List,
@@ -516,7 +517,15 @@ const ProfilePage = () => {
 
   return (
     <Page name="profile">
-      <Navbar title="Profil" backLink="Zurück" />
+      <Navbar title="Profil" backLink="Zurück">
+        {user && (
+          <NavRight>
+            <Button small fill color="red" onClick={handleLogout}>
+              Logout
+            </Button>
+          </NavRight>
+        )}
+      </Navbar>
 
       {!user ? (
         <>
@@ -685,14 +694,6 @@ const ProfilePage = () => {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Button fill onClick={saveProfile} disabled={!canSaveProfile || savingProfile}>
                 {savingProfile ? 'Speichere…' : 'Profil speichern'}
-              </Button>
-
-              <Button outline onClick={() => f7.views.main?.router.navigate('/sudoku/')}>
-                Zum Sudoku
-              </Button>
-
-              <Button fill color="red" onClick={handleLogout}>
-                Logout
               </Button>
             </div>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Page, Navbar, Block, BlockTitle, NavRight, List, ListItem } from 'framework7-react';
+import { Page, Navbar, Block, BlockTitle, NavRight, List, ListItem, Button, f7 } from 'framework7-react';
 import ProfileButton from '../components/ProfileButton.jsx';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../js/firebase';
@@ -25,7 +25,13 @@ export default function LeaderboardPage() {
 
             <BlockTitle>Live Feed</BlockTitle>
             {events.length === 0 ? (
-                <Block strong inset>Keine Meldungen.</Block>
+                <Block strong inset className="empty-state-card">
+                    <div className="empty-state-title">Noch keine Live-Meldungen</div>
+                    <div className="empty-state-text">Löse ein Sudoku, dann erscheint hier direkt dein Fortschritt.</div>
+                    <Button small fill onClick={() => f7.views.main?.router.navigate('/sudoku/?mode=daily')}>
+                        Daily starten
+                    </Button>
+                </Block>
             ) : (
                 <List inset strong>
                     {events.map((e) => {

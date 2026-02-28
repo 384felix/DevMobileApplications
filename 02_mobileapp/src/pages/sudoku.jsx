@@ -399,12 +399,12 @@ export default function SudokuPage(props) {
     const selectionOverrideRef = useRef(false);
     const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
     const [displayName, setDisplayName] = useState('');
-    const displayNameLower = (displayName || '').trim().toLowerCase();
-    const canUseSolutionDebug = displayNameLower === 'flizzmaster' || displayNameLower === 'felixs';
 
     const hasLoadedRef = useRef(false);
     const lastUidRef = useRef(null);
     const hasUnsavedGridChangesRef = useRef(false);
+    const historyRef = useRef([]);
+    const [canUndo, setCanUndo] = useState(false);
 
     useEffect(() => {
         document.body.classList.add('in-sudoku-page');
@@ -445,6 +445,17 @@ export default function SudokuPage(props) {
 
     const handleSelect = (r, c) => setSelected({ r, c });
 
+    const clearHistory = () => {
+        historyRef.current = [];
+        setCanUndo(false);
+    };
+
+    const pushHistory = (snapshot) => {
+        historyRef.current.push(snapshot);
+        if (historyRef.current.length > 80) historyRef.current.shift();
+        setCanUndo(true);
+    };
+
     const setNumber = (n) => {
         if (solved) return;
         const { r, c } = selected;
@@ -452,11 +463,21 @@ export default function SudokuPage(props) {
 
         setGrid((prev) => {
             if (prev[r][c] === n) return prev;
+            pushHistory(clone9(prev));
             const next = clone9(prev);
             next[r][c] = n;
             hasUnsavedGridChangesRef.current = true;
             return next;
         });
+    };
+
+    const undoLastMove = () => {
+        const prev = historyRef.current.pop();
+        if (!prev) return;
+        setGrid(clone9(prev));
+        setSolved(false);
+        hasUnsavedGridChangesRef.current = true;
+        setCanUndo(historyRef.current.length > 0);
     };
 
     // ✅ Auth Listener
@@ -533,6 +554,7 @@ export default function SudokuPage(props) {
         setHelpEnabled(typeof data.helpEnabled === 'boolean' ? data.helpEnabled : true);
         setSolved(!!data.solved);
         setSelected(data.selected?.r != null && data.selected?.c != null ? data.selected : { r: 0, c: 0 });
+        clearHistory();
         hasUnsavedGridChangesRef.current = false;
     };
 
@@ -731,6 +753,7 @@ export default function SudokuPage(props) {
         setGrid(clone9(nextPick.puzzle));
         setSelected({ r: 0, c: 0 });
         hasLoadedRef.current = true;
+        clearHistory();
         hasUnsavedGridChangesRef.current = false;
     };
 
@@ -780,6 +803,7 @@ export default function SudokuPage(props) {
             setGrid(clone9(pick.puzzle));
             setSelected({ r: 0, c: 0 });
             hasLoadedRef.current = true;
+            clearHistory();
             if (!firebaseDisabled) {
                 setFirebaseCheckRequested(true);
             }
@@ -798,6 +822,7 @@ export default function SudokuPage(props) {
         setSolved(false);
         setGrid(clone9(puzzle));
         setSelected({ r: 0, c: 0 });
+        clearHistory();
     };
 
     const loadNewPuzzle = () => {
@@ -891,12 +916,6 @@ export default function SudokuPage(props) {
         }
     };
 
-    const fillWithSolution = () => {
-        setGrid(clone9(SOLUTION_BASE));
-        setSolved(false);
-        f7.toast.create({ text: 'Debug: Lösung eingefügt (noch nicht geprüft)', closeTimeout: 1600 }).open();
-    };
-
     return (
         <Page
             name="sudoku"
@@ -923,33 +942,11 @@ export default function SudokuPage(props) {
                 </NavRight>
             </Navbar>
 
-            <Block strong inset className="sudoku-meta">
-                <div className="sudoku-meta__item">
-                    {user ? (
-                        <>
-                            Eingeloggt als: <b>{user.email}</b>
-                        </>
-                    ) : (
-                        <>
-                            <b>Nicht eingeloggt</b> – Stand wird nicht gespeichert.
-                        </>
-                    )}
-                </div>
-                <div className="sudoku-meta__item sudoku-meta__mode">
-                    Modus: {mode === 'daily' ? `Tägliches Sudoku (${getLocalDateKey()})` : 'Offline'}
-                </div>
-                <div className="sudoku-meta__item sudoku-meta__status">
-                    {loadingSave ? 'Lade Spielstand…' : user ? 'Bereit' : ''}
-                </div>
-            </Block>
-
             <Block className="sudoku-actions-block">
                 <div className="sudoku-actions">
-                    {canUseSolutionDebug && (
-                        <Button outline onClick={fillWithSolution}>
-                            Debug: Lösung einfügen
-                        </Button>
-                    )}
+                    <Button outline disabled={!canUndo || savingNow || loadingSave} onClick={undoLastMove}>
+                        Rückgängig
+                    </Button>
 
                     {/* ✅ Speichern-Button */}
                     <Button fill disabled={!user || savingNow || loadingSave} onClick={manualSave}>

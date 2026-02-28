@@ -644,9 +644,57 @@
     font-size: 13px;
     opacity: 0.72;
     font-weight: 400;
+    margin-top: 8px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.sudoku-menu-continue-btn {
+    justify-self: center;
+    min-width: 132px;
+}
+
+.sudoku-menu-progress {
+    margin-top: 6px;
+    display: grid;
+    gap: 6px;
+}
+
+.sudoku-menu-progress__row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    opacity: 0.82;
+}
+
+.sudoku-menu-progress__bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(9, 43, 61, 0.14);
+    overflow: hidden;
+}
+
+.sudoku-menu-progress__bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4dc3de, #2f90b9);
+}
+
+.empty-state-card {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+}
+
+.empty-state-title {
+    font-weight: 700;
+}
+
+.empty-state-text {
+    opacity: 0.75;
+    font-size: 13px;
 }
 
 .sudoku-menu-section-title {
