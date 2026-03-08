@@ -8,6 +8,7 @@ import {
   List,
   ListInput,
   Button,
+  Preloader,
   f7,
 } from 'framework7-react';
 
@@ -19,7 +20,13 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 
-import { doc, getDoc, runTransaction, setDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 import { Geolocation } from '@capacitor/geolocation';
 
@@ -57,6 +64,42 @@ async function reverseGeocodeCity(lat, lng) {
   return { city, country };
 }
 
+function requestFailMessage(reason) {
+  if (reason === 'permission-denied') return 'Standortfreigabe wurde verweigert.';
+  if (reason === 'no-coordinates') return 'Es konnten keine gültigen GPS-Koordinaten gelesen werden.';
+  if (reason === 'timeout') return 'Standortabfrage hat zu lange gedauert (Timeout).';
+  if (reason === 'insecure-context') return 'Standort auf Web ist nur über HTTPS oder localhost verfügbar.';
+  if (reason === 'browser-unsupported') return 'Dieser Browser unterstützt keine Standortabfrage.';
+  if (reason === 'location-unavailable') return 'Standortdienst ist aktuell nicht verfügbar.';
+  if (reason === 'write-failed') return 'Standort konnte nicht in der Datenbank gespeichert werden.';
+  if (reason === 'not-allowed') return 'Nur Selbstanfragen sind erlaubt.';
+  return 'Unbekannter Fehler beim Standortabruf.';
+}
+
+function normalizeLocationFailReason(error) {
+  const rawCode = error?.code;
+  const code = typeof rawCode === 'number' ? String(rawCode) : String(rawCode || '').toLowerCase();
+  const msg = String(error?.message || '').toLowerCase();
+
+  if (code === 'permission-denied' || code === '1' || msg.includes('permission') && msg.includes('denied')) {
+    return 'permission-denied';
+  }
+  if (code === 'timeout' || code === '3' || msg.includes('timeout')) {
+    return 'timeout';
+  }
+  if (
+    msg.includes('secure context')
+    || msg.includes('only secure origins')
+    || msg.includes('https')
+  ) {
+    return 'insecure-context';
+  }
+  if (msg.includes('not implemented') || msg.includes('not supported')) {
+    return 'browser-unsupported';
+  }
+  return 'location-unavailable';
+}
+
 const ProfilePage = () => {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
 
@@ -80,10 +123,84 @@ const ProfilePage = () => {
   const [locationStatus, setLocationStatus] = useState('Unbekannt');
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationPermission, setLocationPermission] = useState('unknown');
+  const [selfLocationRequestState, setSelfLocationRequestState] = useState('idle'); // idle | running
   const [profile, setProfile] = useState({
     username: '',
     avatarId: AVATAR_IDS[0],
   });
+
+  const getPositionFromBrowser = (options) =>
+    new Promise((resolve, reject) => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        const err = new Error('Geolocation not supported');
+        err.code = 'browser-unsupported';
+        reject(err);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+
+  const resolveDeviceLocation = async () => {
+    try {
+      const perms = await Geolocation.checkPermissions();
+      if (perms.location === 'denied' || perms.coarseLocation === 'denied') {
+        setLocationPermission('denied');
+        const err = new Error('permission denied');
+        err.code = 'permission-denied';
+        throw err;
+      }
+      if (perms.location === 'prompt' || perms.coarseLocation === 'prompt') {
+        const req = await Geolocation.requestPermissions();
+        if (req.location === 'denied' || req.coarseLocation === 'denied') {
+          setLocationPermission('denied');
+          const err = new Error('permission denied');
+          err.code = 'permission-denied';
+          throw err;
+        }
+      }
+      setLocationPermission('granted');
+    } catch (e) {
+      // Auf Web kann checkPermissions/requestPermissions fehlschlagen; wir versuchen dann Browser-Geolocation.
+      console.warn('[profile] permission check fallback to browser geolocation', e);
+    }
+
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000,
+    };
+
+    let pos = null;
+    try {
+      pos = await Geolocation.getCurrentPosition(options);
+    } catch (capErr) {
+      try {
+        pos = await getPositionFromBrowser(options);
+      } catch (browserErr) {
+        throw browserErr || capErr;
+      }
+    }
+
+    const lat = pos?.coords?.latitude;
+    const lng = pos?.coords?.longitude;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      const err = new Error('invalid coordinates');
+      err.code = 'no-coordinates';
+      throw err;
+    }
+
+    let city = '';
+    let country = '';
+    try {
+      const geo = await reverseGeocodeCity(lat, lng);
+      city = geo.city;
+      country = geo.country;
+    } catch (e) {
+      console.error('[profile] reverse geocode failed', e);
+    }
+
+    return { lat, lng, city, country };
+  };
 
   // ---- Auth Listener
   useEffect(() => {
@@ -200,43 +317,7 @@ const ProfilePage = () => {
     const updateLocationCity = async () => {
       setLocationLoading(true);
       try {
-        const perms = await Geolocation.checkPermissions();
-        if (perms.location === 'denied' || perms.coarseLocation === 'denied') {
-          setLocationPermission('denied');
-          if (!cancelled) setLocationStatus('Freigabe verweigert');
-          return;
-        }
-        if (perms.location === 'prompt' || perms.coarseLocation === 'prompt') {
-          const req = await Geolocation.requestPermissions();
-          if (req.location === 'denied' || req.coarseLocation === 'denied') {
-            setLocationPermission('denied');
-            if (!cancelled) setLocationStatus('Freigabe verweigert');
-            return;
-          }
-        }
-        setLocationPermission('granted');
-
-        const pos = await Geolocation.getCurrentPosition({
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
-        });
-        const lat = pos?.coords?.latitude;
-        const lng = pos?.coords?.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-          if (!cancelled) setLocationStatus('Nicht verfügbar');
-          return;
-        }
-
-        let city = '';
-        let country = '';
-        try {
-          const geo = await reverseGeocodeCity(lat, lng);
-          city = geo.city;
-          country = geo.country;
-        } catch (e) {
-          console.error('[profile] reverse geocode failed', e);
-        }
+        const { lat, lng, city, country } = await resolveDeviceLocation();
 
         const label = cityLabelFromLocation({ city, country });
         if (!cancelled) setLocationStatus(label);
@@ -256,8 +337,21 @@ const ProfilePage = () => {
         );
       } catch (e) {
         console.error('[profile] location update failed', e);
-        setLocationPermission((prev) => (prev === 'denied' ? prev : 'unknown'));
-        if (!cancelled) setLocationStatus('Nicht verfügbar');
+        const failReason =
+          e?.code === 'no-coordinates'
+            ? 'no-coordinates'
+            : e?.code === 'permission-denied'
+              ? 'permission-denied'
+              : normalizeLocationFailReason(e);
+        if (!cancelled) {
+          if (failReason === 'permission-denied') {
+            setLocationPermission('denied');
+            setLocationStatus('Freigabe verweigert');
+          } else {
+            setLocationPermission((prev) => (prev === 'denied' ? prev : 'unknown'));
+            setLocationStatus(requestFailMessage(failReason));
+          }
+        }
       } finally {
         if (!cancelled) setLocationLoading(false);
       }
@@ -268,6 +362,53 @@ const ProfilePage = () => {
       cancelled = true;
     };
   }, [user]);
+
+  const sendSelfLocationRequest = async () => {
+    const myUid = user?.uid;
+    if (!myUid) return;
+    if (selfLocationRequestState !== 'idle') return;
+
+    setSelfLocationRequestState('running');
+    setLocationLoading(true);
+    try {
+      const { lat, lng, city, country } = await resolveDeviceLocation();
+      const label = cityLabelFromLocation({ city, country });
+      setLocationStatus(label);
+
+      await setDoc(
+        doc(db, 'users', myUid),
+        {
+          lastLocation: {
+            lat,
+            lng,
+            ...(city ? { city } : {}),
+            ...(country ? { country } : {}),
+            updatedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+
+      f7.toast.create({ text: 'Standort erfolgreich aktualisiert.', closeTimeout: 1800 }).open();
+    } catch (e) {
+      console.error('[profile] sendSelfLocationRequest error:', e);
+      const failReason =
+        e?.code === 'no-coordinates'
+          ? 'no-coordinates'
+          : e?.code === 'permission-denied'
+            ? 'permission-denied'
+            : normalizeLocationFailReason(e);
+      const failMessage = requestFailMessage(failReason);
+      if (failReason === 'permission-denied') {
+        setLocationPermission('denied');
+        setLocationStatus('Freigabe verweigert');
+      }
+      f7.dialog.alert(failMessage, 'Standortabfrage fehlgeschlagen');
+    } finally {
+      setSelfLocationRequestState('idle');
+      setLocationLoading(false);
+    }
+  };
 
   const canSaveProfile = useMemo(() => {
     if (!user) return false;
@@ -647,6 +788,21 @@ const ProfilePage = () => {
             <span>
               Standort: {locationLoading ? 'wird ermittelt…' : locationStatus}
             </span>
+            <Button
+              small
+              outline
+              onClick={sendSelfLocationRequest}
+              disabled={selfLocationRequestState !== 'idle'}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {selfLocationRequestState !== 'idle' && <Preloader size={14} />}
+                <span>
+                  {selfLocationRequestState === 'running'
+                    ? 'Standortabfrage läuft…'
+                    : 'Standort anfragen'}
+                </span>
+              </span>
+            </Button>
           </Block>
 
           <Block strong inset className="profile-completion-card" role="status" aria-live="polite">
