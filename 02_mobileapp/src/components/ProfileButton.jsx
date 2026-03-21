@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'framework7-react';
 import { auth } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -15,6 +15,7 @@ export default function ProfileButton() {
 
     useEffect(() => {
         let listener;
+        let cleanupFallback = null;
 
         const initNetwork = async () => {
             try {
@@ -30,18 +31,18 @@ export default function ProfileButton() {
                 window.addEventListener('online', update);
                 window.addEventListener('offline', update);
 
-                return () => {
+                cleanupFallback = () => {
                     window.removeEventListener('online', update);
                     window.removeEventListener('offline', update);
                 };
             }
         };
 
-        const cleanupFallback = initNetwork();
+        initNetwork();
 
         return () => {
             if (listener) listener.remove();
-            if (typeof cleanupFallback === 'function') cleanupFallback();
+            if (cleanupFallback) cleanupFallback();
         };
     }, []);
 

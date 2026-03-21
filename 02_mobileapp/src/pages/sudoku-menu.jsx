@@ -10,6 +10,7 @@ export default function SudokuMenuPage() {
     const [user, setUser] = useState(null);
     const [progress, setProgress] = useState({ easy: 0, medium: 0, hard: 0 });
 
+    // Letzte Auswahl lokal merken, damit ein Spiel direkt fortgesetzt werden kann.
     useEffect(() => {
         try {
             const raw = localStorage.getItem('sudokuLastPlayed');
@@ -24,6 +25,7 @@ export default function SudokuMenuPage() {
         return () => unsub();
     }, []);
 
+    // Für angemeldete Nutzer wird der Fortschritt aus Firestore gelesen, sonst lokal.
     useEffect(() => {
         const countFromLocal = (uid) => {
             try {
@@ -90,7 +92,6 @@ export default function SudokuMenuPage() {
     })();
 
     const goToSudoku = (query) => {
-        // - Wechselt direkt zum Sudoku-Brett (z. B. tägliches Sudoku)
         f7.views.main?.router.navigate('/sudoku/', { query });
     };
 
@@ -129,8 +130,6 @@ export default function SudokuMenuPage() {
     };
 
     const goToList = (difficulty) => {
-        // - Öffnet die Liste der Offline-Sudokus für die gewählte Schwierigkeit
-        console.log('[SudokuMenu] MENU select difficulty:', difficulty);
         f7.views.main?.router.navigate(`/sudoku-list/?difficulty=${difficulty}`);
     };
 
@@ -142,7 +141,7 @@ export default function SudokuMenuPage() {
                 </NavRight>
             </Navbar>
             <div className="sudoku-menu-layout">
-                {/* - Zentrale Auswahl für Daily / Offline */}
+                {/* Zentrale Auswahl zwischen Daily Challenge und lokal gespeicherten Sudokus. */}
                 <Block strong inset className="sudoku-menu-card">
                     <div className="sudoku-menu-section-title">Tägliches Sudoku</div>
                     <Button fill onClick={() => goToSudoku({ mode: 'daily' })}>

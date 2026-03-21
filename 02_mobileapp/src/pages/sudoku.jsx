@@ -16,13 +16,11 @@ import SudokuGrid from '../components/SudokuGrid.jsx';
 import ProfileButton from '../components/ProfileButton.jsx';
 import puzzles from '../../tools/puzzles.json';
 
-// ✅ Firebase
 import { auth, db } from '../js/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 
-// =========================
-// Lösung (Basis)
+// Feste Sudoku-Basis, aus der über Seed und Maske konkrete Rätsel abgeleitet werden.
 const SOLUTION_BASE = [
     [5, 3, 4, 6, 7, 8, 9, 1, 2],
     [6, 7, 2, 1, 9, 5, 3, 4, 8],
@@ -122,13 +120,11 @@ function buildPuzzleFromSeedAndMask(seed, mask) {
     return puzzle;
 }
 
-// =========================
-// Easy / Medium / Hard (je 10, aus tools/puzzles.json)
+// Je zehn vorbereitete Rätsel pro Schwierigkeitsgrad.
 const EASY_PUZZLES = (puzzles?.easy || []).map((p) => ({ seed: p.seed, mask: p.mask }));
 const MEDIUM_PUZZLES = (puzzles?.medium || []).map((p) => ({ seed: p.seed, mask: p.mask }));
 const HARD_PUZZLES = (puzzles?.hard || []).map((p) => ({ seed: p.seed, mask: p.mask }));
 
-// -------------------------
 const clone9 = (g) => g.map((row) => row.slice());
 const computeGiven = (p) => p.map((row) => row.map((v) => v !== 0));
 
@@ -246,16 +242,6 @@ function buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex) 
     return { mode: 'offline', difficulty, index: idx };
 }
 
-function countGivens(grid) {
-    let n = 0;
-    for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-            if (grid[r][c] !== 0) n++;
-        }
-    }
-    return n;
-}
-
 function buildSaveDocId(uid, mode, difficulty, puzzleListIndex, puzzleIndex) {
     if (!uid) return null;
     if (mode === 'daily') {
@@ -301,7 +287,7 @@ function clearPendingSelection() {
     }
 }
 
-// ✅ Firestore-safe serialize/deserialize (keine nested arrays)
+// Firestore speichert den Spielstand als String, damit keine verschachtelten Arrays nötig sind.
 function gridToString(g) {
     let out = '';
     for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) out += String(g[r][c] ?? 0);
@@ -323,7 +309,6 @@ function stringToGrid(s) {
     return g;
 }
 
-// -------------------------
 function isCellInvalid(grid, r, c) {
     const v = grid[r][c];
     if (v === 0) return false;
@@ -387,16 +372,12 @@ function isSolvedGrid(grid) {
     return true;
 }
 
-// =========================
 export default function SudokuPage(props) {
-    // - Debug: Firebase komplett deaktivieren (nur lokal arbeiten)
-    const firebaseDisabled = false;
-    // ✅ Auth / Save
+    // Nutzer- und Speicherstatus für Cloud-Saves.
     const [user, setUser] = useState(null);
     const [loadingSave, setLoadingSave] = useState(false);
     const [savingNow, setSavingNow] = useState(false);
     const [mode, setMode] = useState('offline');
-    const selectionOverrideRef = useRef(false);
     const [firebaseCheckRequested, setFirebaseCheckRequested] = useState(false);
     const [displayName, setDisplayName] = useState('');
 
@@ -480,9 +461,7 @@ export default function SudokuPage(props) {
         setCanUndo(historyRef.current.length > 0);
     };
 
-    // ✅ Auth Listener
     useEffect(() => {
-        // - Hört auf Login/Logout
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
     }, []);
@@ -503,15 +482,12 @@ export default function SudokuPage(props) {
         })();
     }, [user]);
 
-    // ✅ Doc Ref
     const saveRef = useMemo(() => {
-        if (firebaseDisabled) return null;
         if (!user) return null;
-        // - Doc-ID pro Puzzle: uid_offline_<difficulty>_<index>
         const docId = buildSaveDocId(user.uid, mode, difficulty, puzzleListIndex, puzzleIndex);
         if (!docId) return null;
         return doc(db, 'sudokuSaves', docId);
-    }, [firebaseDisabled, user, mode, difficulty, puzzleListIndex, puzzleIndex]);
+    }, [user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
     const applyLoadedSave = (data, fallbackMode, fallbackDifficulty, fallbackIndex) => {
         const loadedMode = data.mode === 'daily' ? 'daily' : data.mode === 'offline' ? 'offline' : fallbackMode;
@@ -535,14 +511,6 @@ export default function SudokuPage(props) {
             stringToGrid(data.puzzleStr) || seedMaskPick?.puzzle || fallbackPick.puzzle;
         const loadedGrid = stringToGrid(data.gridStr) || clone9(loadedPuzzle);
 
-        console.log('[Sudoku] loaded save:', {
-            loadedMode,
-            loadedDifficulty,
-            loadedPuzzleIndex,
-            givens: countGivens(loadedPuzzle),
-            seed: seedMaskPick?.seed || fallbackPick.seed,
-        });
-
         setMode(loadedMode);
         setDifficulty(loadedDifficulty);
         setPuzzle(loadedPuzzle);
@@ -559,10 +527,6 @@ export default function SudokuPage(props) {
     };
 
     const fetchFromFirebase = async () => {
-        if (firebaseDisabled) {
-            setFirebaseCheckRequested(false);
-            return;
-        }
         if (!saveRef) {
             return;
         }
@@ -597,7 +561,6 @@ export default function SudokuPage(props) {
                 Number.isFinite(idx) ? idx : null
             );
         } catch (e) {
-            console.error('Failed to load sudoku save', e);
             const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
             const cached = readCachedSave(user?.uid, difficulty, idx);
             if (cached) {
@@ -619,18 +582,13 @@ export default function SudokuPage(props) {
         }
     };
 
-    // ✅ Firebase-Load nur per Button
+    // Ein Cloud-Load wird nur dann ausgelöst, wenn für die aktuelle Auswahl wirklich ein Save vorliegen könnte.
     useEffect(() => {
         if (!firebaseCheckRequested) return;
         fetchFromFirebase();
     }, [firebaseCheckRequested, saveRef]);
 
-    // ✅ Manueller Save Button (Firestore-safe)
     const manualSave = async () => {
-        if (firebaseDisabled) {
-            f7.toast.create({ text: 'Firebase deaktiviert (Debug)', closeTimeout: 1500 }).open();
-            return;
-        }
         if (!user) {
             f7.dialog.alert('Bitte zuerst einloggen, um zu speichern.');
             return;
@@ -668,17 +626,15 @@ export default function SudokuPage(props) {
 
             f7.toast.create({ text: 'Gespeichert ✅', closeTimeout: 1500 }).open();
         } catch (e) {
-            console.error('Manual save failed', e);
             f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Speichern fehlgeschlagen');
         } finally {
             setSavingNow(false);
         }
     };
 
-    // ✅ Auto-Save debounced – ebenfalls Firestore-safe
+    // Automatisches Speichern verhindert Datenverlust, ohne bei jeder Eingabe sofort zu schreiben.
     const saveTimer = useRef(null);
     useEffect(() => {
-        if (firebaseDisabled) return;
         if (!saveRef) return;
         if (!hasLoadedRef.current) return;
 
@@ -709,15 +665,15 @@ export default function SudokuPage(props) {
                     if (payload) saveLastPlayed(payload);
                     hasUnsavedGridChangesRef.current = false;
                 }
-            } catch (e) {
-                console.error('Auto-save failed', e);
+            } catch {
+                // Fehler beim Auto-Save sollen das Spielen nicht unterbrechen.
             }
         }, 600);
 
         return () => {
             if (saveTimer.current) clearTimeout(saveTimer.current);
         };
-    }, [firebaseDisabled, saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
+    }, [saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
 
     // Keyboard
     useEffect(() => {
@@ -738,9 +694,8 @@ export default function SudokuPage(props) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selected, solved]);
 
-    // Aktionen
+    // Lädt je nach Modus ein neues lokales Sudoku.
     const loadPuzzleForMode = (diff, nextMode = mode) => {
-        // - Lädt ein neues Puzzle (lokal, ohne Firebase)
         const dateKey = getLocalDateKey();
         const nextPick =
             nextMode === 'daily' ? pickDailyPuzzleByDifficulty(diff, dateKey) : pickRandomPuzzleByDifficulty(diff);
@@ -758,7 +713,6 @@ export default function SudokuPage(props) {
     };
 
     const applySelection = (sel) => {
-        // - Wird aufgerufen, wenn du in der Liste ein Sudoku auswählst
         if (!sel) return;
         const nextMode = sel.mode === 'daily' || sel.mode === 'offline' ? sel.mode : null;
         const nextDifficulty =
@@ -770,16 +724,6 @@ export default function SudokuPage(props) {
 
         if (!nextMode && !nextDifficulty && !hasPuzzleIndex) return;
 
-        selectionOverrideRef.current = true;
-        console.log('[Sudoku] applySelection:', {
-            nextMode,
-            nextDifficulty,
-            parsedPuzzleIndex,
-            hasPuzzleIndex,
-            mode,
-            difficulty,
-        });
-
         const finalMode = nextMode || mode;
         const finalDifficulty = nextDifficulty || difficulty;
 
@@ -788,12 +732,6 @@ export default function SudokuPage(props) {
 
         if (hasPuzzleIndex) {
             const pick = pickPuzzleByIndex(finalDifficulty, parsedPuzzleIndex);
-            console.log('[Sudoku] selected puzzle:', {
-                difficulty: finalDifficulty,
-                index: parsedPuzzleIndex,
-                givens: countGivens(pick.puzzle),
-                seed: pick.seed,
-            });
             setPuzzle(pick.puzzle);
             setPuzzleIndex(pick.poolIndex);
             setPuzzleSeed(pick.seed);
@@ -804,9 +742,7 @@ export default function SudokuPage(props) {
             setSelected({ r: 0, c: 0 });
             hasLoadedRef.current = true;
             clearHistory();
-            if (!firebaseDisabled) {
-                setFirebaseCheckRequested(true);
-            }
+            setFirebaseCheckRequested(true);
             hasUnsavedGridChangesRef.current = false;
 
         } else {
@@ -836,17 +772,13 @@ export default function SudokuPage(props) {
     };
 
     useEffect(() => {
-        // - Route-Query (difficulty/puzzleIndex) kommt hier an
-        const routeQuery = props?.f7route?.query || {};
-        console.log('[Sudoku] route query:', routeQuery);
-        applySelection(routeQuery);
+        applySelection(props?.f7route?.query || {});
     }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
     const checkSolution = async () => {
         const ok = isSolvedGrid(grid);
         if (ok) {
             setSolved(true);
-            // - Beim Lösen sofort speichern (aktueller Stand)
             if (user && saveRef) {
                 try {
                     await setDoc(
@@ -874,7 +806,6 @@ export default function SudokuPage(props) {
                     }
                     f7.toast.create({ text: 'Gelöst & gespeichert ✅', closeTimeout: 1500 }).open();
                 } catch (e) {
-                    console.error('Save on solve failed', e);
                     f7.dialog.alert(`${e.code || ''}\n${e.message || e}`, 'Speichern fehlgeschlagen');
                 }
             }
@@ -904,9 +835,7 @@ export default function SudokuPage(props) {
                                 mode: 'offline',
                                 createdAt: serverTimestamp(),
                             });
-                        } catch (e) {
-                            console.error('Failed to update summary', e);
-                        }
+                        } catch {}
                     }
                 }
             }
@@ -964,7 +893,7 @@ export default function SudokuPage(props) {
             </Block>
 
             <Block className="sudoku-board-block">
-                {/* - Sudoku-Brett */}
+                {/* Das eigentliche 9x9-Raster wird als eigene Komponente gekapselt. */}
                 <SudokuGrid
                     grid={grid}
                     given={given}

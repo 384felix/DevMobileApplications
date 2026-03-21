@@ -66,14 +66,11 @@ export default function SudokuListPage(props) {
     const items = Array.from({ length: 10 }, (_, i) => i);
 
     useEffect(() => {
-        // - Merkt sich, wer eingeloggt ist (für "Gelöst"-Anzeige)
         const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
         return () => unsub();
     }, []);
 
     useEffect(() => {
-        // - Lokaler Speicher: gelöste Sudokus pro User
-        console.log('[SudokuList] user uid:', user?.uid || 'anon');
         setSolvedMap(readSolvedMap(user?.uid));
     }, [user]);
 
@@ -88,8 +85,7 @@ export default function SudokuListPage(props) {
                 const summaryRef = doc(db, 'users', user.uid, 'sudokuProgress', 'summary');
                 const snap = await getDoc(summaryRef);
                 setSolvedSummary(snap.exists() ? snap.data()?.offline || {} : {});
-            } catch (e) {
-                console.error('Failed to load summary', e);
+            } catch {
                 setSolvedSummary({});
             }
         };
@@ -106,8 +102,7 @@ export default function SudokuListPage(props) {
             const summaryRef = doc(db, 'users', user.uid, 'sudokuProgress', 'summary');
             const snap = await getDoc(summaryRef);
             setSolvedSummary(snap.exists() ? snap.data()?.offline || {} : {});
-        } catch (e) {
-            console.error('Failed to load summary', e);
+        } catch {
             setSolvedSummary({});
         }
     };
@@ -147,8 +142,7 @@ export default function SudokuListPage(props) {
                 })
             );
             setProgressMap(results);
-        } catch (e) {
-            console.error('Failed to load progress', e);
+        } catch {
             const cached = readCachedSaves(user.uid);
             const results = {};
             items.forEach((idx) => {
@@ -164,11 +158,8 @@ export default function SudokuListPage(props) {
     };
 
     useEffect(() => {
-        // - Liest die Schwierigkeit aus der URL (?difficulty=hard)
         const raw = props?.f7route?.query?.difficulty;
-        const norm = normalizeDifficulty(raw);
-        console.log('[SudokuList] route difficulty:', raw, '=>', norm);
-        setDifficulty(norm);
+        setDifficulty(normalizeDifficulty(raw));
     }, [props?.f7route?.query?.difficulty]);
 
     const refreshSolved = () => {
@@ -190,8 +181,6 @@ export default function SudokuListPage(props) {
         <Page
             name="sudoku-list"
             onPageBeforeIn={(e) => {
-                // - Seite wird angezeigt: Status-Liste aktualisieren
-                console.log('[SudokuList] onPageBeforeIn');
                 refreshSolved();
                 refreshSummary();
                 refreshProgress();
@@ -223,8 +212,6 @@ export default function SudokuListPage(props) {
                             link
                             className={`sudoku-list-item ${statusClass}`}
                             onClick={(e) => {
-                                // - Auswahl eines konkreten Sudokus (Index 0..9)
-                                console.log('[SudokuList] click puzzle', { difficulty, idx });
                                 if (e?.preventDefault) e.preventDefault();
                                 try {
                                     sessionStorage.setItem(

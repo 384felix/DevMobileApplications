@@ -172,8 +172,7 @@ export default function FriendsPage({ f7router }) {
     }, [myUid]);
 
     // -------------------------
-    // Incoming / Outgoing Requests live
-    // (pending-only + Error-Handler + Debug-Logs)
+    // Offene eingehende und ausgehende Anfragen werden live aus Firestore geladen.
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -197,9 +196,7 @@ export default function FriendsPage({ f7router }) {
         const unsubIn = onSnapshot(
             qIn,
             (snap) => {
-                const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                console.log('[friendRequests] INCOMING rows:', rows);
-                setIncoming(rows);
+                setIncoming(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
             },
             (err) => {
                 console.error('[friendRequests] INCOMING listener error:', err);
@@ -209,9 +206,7 @@ export default function FriendsPage({ f7router }) {
         const unsubOut = onSnapshot(
             qOut,
             (snap) => {
-                const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                console.log('[friendRequests] OUTGOING rows:', rows);
-                setOutgoing(rows);
+                setOutgoing(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
             },
             (err) => {
                 console.error('[friendRequests] OUTGOING listener error:', err);
@@ -485,7 +480,6 @@ export default function FriendsPage({ f7router }) {
                 updatedAtServer: serverTimestamp(),
             });
 
-            console.log('[sendRequest] created', { id: docRef.id, fromUid: myUid, toUid });
             f7.toast.create({ text: 'Anfrage gesendet ✅', closeTimeout: 1400 }).open();
         } catch (e) {
             console.error('[sendRequest] error:', e);
@@ -505,7 +499,6 @@ export default function FriendsPage({ f7router }) {
                 updatedAt: new Date(),
                 updatedAtServer: serverTimestamp(),
             });
-            console.log('[acceptRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
             // incoming wird eh durch Snapshot aktualisiert – der Filter ist nur UX sofort
             setIncoming((prev) => prev.filter((r) => r.id !== req.id));
 
@@ -535,7 +528,6 @@ export default function FriendsPage({ f7router }) {
                 updatedAt: new Date(),
                 updatedAtServer: serverTimestamp(),
             });
-            console.log('[rejectRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
             setIncoming((prev) => prev.filter((r) => r.id !== req.id));
             f7.toast.create({ text: 'Anfrage abgelehnt', closeTimeout: 1200 }).open();
         } catch (e) {
@@ -552,7 +544,6 @@ export default function FriendsPage({ f7router }) {
                 updatedAtServer: serverTimestamp(),
             });
 
-            console.log('[cancelRequest] updated', { id: req.id, fromUid: req.fromUid, toUid: req.toUid });
             // outgoing ist pending-only im Snapshot -> nach cancel verschwindet es automatisch
             // der lokale Filter ist nur "sofortiges" UI:
             setOutgoing((prev) => prev.filter((r) => r.id !== req.id));

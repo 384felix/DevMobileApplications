@@ -1,44 +1,30 @@
-import React, { useEffect, useRef, useState } from 'react';
-
-import {
-  f7,
-  f7ready,
-  App,
-  Panel,
-  Views,
-  View,
-  Popup,
-  Page,
-  Navbar,
-  Toolbar,
-  NavRight,
-  Link,
-  Block,
-  LoginScreen,
-  LoginScreenTitle,
-  List,
-  ListInput,
-  ListButton,
-  BlockFooter,
-} from 'framework7-react';
-
-import routes from '../js/routes';
-import store from '../js/store';
-import { auth, db } from '../js/firebase';
-import LoadingScreen from '../pages/loading.jsx';
+import { useEffect, useRef, useState } from 'react';
+import { f7, f7ready, App, Views, View, Toolbar, Link } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { Network } from '@capacitor/network';
 
-const MyApp = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+import routes from '../js/routes';
+import { auth, db } from '../js/firebase';
+import LoadingScreen from '../pages/loading.jsx';
+
+function buildSaveDocId(uid, difficulty, puzzleIndex) {
+  if (!uid || !Number.isFinite(puzzleIndex)) return null;
+  return `${uid}_offline_${difficulty}_${puzzleIndex}`;
+}
+
+export default function MyApp() {
   const [incomingCount, setIncomingCount] = useState(0);
   const [online, setOnline] = useState(false);
   const [appVisible, setAppVisible] = useState(typeof document !== 'undefined' ? !document.hidden : true);
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [minimumSplashDone, setMinimumSplashDone] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
   const onlineInitRef = useRef(false);
   const cacheInFlightRef = useRef(false);
   const presenceUidRef = useRef(null);
@@ -49,11 +35,6 @@ const MyApp = () => {
     'view-leaderboard': '/leaderboard/',
   });
 
-  // ✅ Dark Mode State (persistiert)
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
-  });
   const pushStateRoot = import.meta.env.BASE_URL?.startsWith('/') ? import.meta.env.BASE_URL : '/';
 
   const f7params = {
@@ -61,16 +42,13 @@ const MyApp = () => {
     theme: 'auto',
     pushState: true,
     pushStateRoot,
-
     colors: {
       primary: '#2b93bf',
     },
-
-    store,
     routes,
   };
 
-  // ✅ Framework7 initial ready + initial DarkMode anwenden
+  // Dark Mode wird lokal gespeichert und beim Start sofort angewendet.
   useEffect(() => {
     f7ready(() => {
       f7.setDarkMode(darkMode);
@@ -84,52 +62,49 @@ const MyApp = () => {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const buildSaveDocId = (uid, difficulty, puzzleIndex) => {
-    if (!uid) return null;
-    if (!Number.isFinite(puzzleIndex)) return null;
-    return `${uid}_offline_${difficulty}_${puzzleIndex}`;
-  };
-
+  // Speichert bekannte Sudoku-Stände lokal, damit die Listen- und Spielseiten auch offline weiterarbeiten können.
   const cacheSudokuSaves = async (uid) => {
     if (!uid || cacheInFlightRef.current) return;
     cacheInFlightRef.current = true;
+
     try {
-      const difficulties = ['easy', 'medium', 'hard'];
       const data = {};
+      const difficulties = ['easy', 'medium', 'hard'];
+
       await Promise.all(
         difficulties.flatMap((difficulty) =>
           Array.from({ length: 10 }, (_, idx) => idx).map(async (idx) => {
             const docId = buildSaveDocId(uid, difficulty, idx);
             if (!docId) return;
+
             const snap = await getDoc(doc(db, 'sudokuSaves', docId));
             if (!snap.exists()) return;
-            const d = snap.data() || {};
+
+            const saveData = snap.data() || {};
             if (!data[difficulty]) data[difficulty] = {};
             data[difficulty][String(idx)] = {
-              puzzleStr: d.puzzleStr || '',
-              gridStr: d.gridStr || '',
-              solved: !!d.solved,
-              updatedAt: d.updatedAt?.toMillis ? d.updatedAt.toMillis() : null,
+              puzzleStr: saveData.puzzleStr || '',
+              gridStr: saveData.gridStr || '',
+              solved: !!saveData.solved,
+              updatedAt: saveData.updatedAt?.toMillis ? saveData.updatedAt.toMillis() : null,
             };
           })
         )
       );
-      const payload = { updatedAt: Date.now(), data };
-      localStorage.setItem(`sudokuSavesCache_v1:${uid}`, JSON.stringify(payload));
-    } catch (e) {
-      console.error('[cacheSudokuSaves] failed', e);
+
+      localStorage.setItem(`sudokuSavesCache_v1:${uid}`, JSON.stringify({ updatedAt: Date.now(), data }));
+    } catch {
+      // Der Cache ist optional und darf die App nicht beeinträchtigen.
     } finally {
       cacheInFlightRef.current = false;
     }
   };
 
-  // ✅ Wenn man vom Tab weg und zurück geht, Profil-Page schließen
+  // Beim Wechsel zwischen Tabs soll die Profilseite nicht versehentlich in einem Fremd-Tab "stehen bleiben".
   useEffect(() => {
     f7ready(() => {
       const viewIds = ['view-sudoku', 'view-friends', 'view-leaderboard'];
-      const views = viewIds
-        .map((id) => f7.views.get(`#${id}`))
-        .filter(Boolean);
+      const views = viewIds.map((id) => f7.views.get(`#${id}`)).filter(Boolean);
 
       const handleRouteChange = (viewId, route) => {
         const url = route?.url;
@@ -138,10 +113,18 @@ const MyApp = () => {
         }
       };
 
+      const routeHandlers = views.map((view) => {
+        const handler = (route) => handleRouteChange(view.el?.id, route);
+        view.router.on('routeChange', handler);
+        return { view, handler };
+      });
+
       const handleTabShow = (tabEl) => {
         if (!tabEl?.id) return;
+
         const view = f7.views.get(`#${tabEl.id}`);
         if (!view) return;
+
         const currentUrl = view.router?.currentRoute?.url || '';
         if (currentUrl.startsWith('/profile/')) {
           const target = lastViewUrlRef.current[tabEl.id] || view.router?.history?.[0] || '/';
@@ -149,25 +132,23 @@ const MyApp = () => {
         }
       };
 
-      views.forEach((view) => {
-        view.router.on('routeChange', (route) => handleRouteChange(view.el?.id, route));
-      });
       f7.on('tabShow', handleTabShow);
 
       return () => {
-        views.forEach((view) => {
-          view.router.off('routeChange');
+        routeHandlers.forEach(({ view, handler }) => {
+          view.router.off('routeChange', handler);
         });
         f7.off('tabShow', handleTabShow);
       };
     });
   }, []);
 
-  // ✅ Nach Login/Logout immer zurück ins Sudoku-Menü
+  // Nach Login oder Logout geht die App zurück ins Sudoku-Menü.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser || null);
       setAuthReady(true);
+
       f7ready(() => {
         if (!authInitHandledRef.current) {
           authInitHandledRef.current = true;
@@ -176,43 +157,43 @@ const MyApp = () => {
         f7.views.main?.router.navigate('/sudoku-menu/', { reloadCurrent: true, ignoreCache: true });
       });
     });
+
     return () => unsub();
   }, []);
 
-  // ✅ Online/Offline Status global
   useEffect(() => {
     let listener;
+    let cleanupFallback = null;
 
     const initNetwork = async () => {
       try {
         const status = await Network.getStatus();
         setOnline(status.connected);
 
-        listener = await Network.addListener('networkStatusChange', (s) => {
-          setOnline(s.connected);
+        listener = await Network.addListener('networkStatusChange', (nextStatus) => {
+          setOnline(nextStatus.connected);
         });
-      } catch (e) {
+      } catch {
         const update = () => setOnline(navigator.onLine);
         update();
         window.addEventListener('online', update);
         window.addEventListener('offline', update);
 
-        return () => {
+        cleanupFallback = () => {
           window.removeEventListener('online', update);
           window.removeEventListener('offline', update);
         };
       }
     };
 
-    const cleanupFallback = initNetwork();
+    initNetwork();
 
     return () => {
       if (listener) listener.remove();
-      if (typeof cleanupFallback === 'function') cleanupFallback();
+      if (cleanupFallback) cleanupFallback();
     };
   }, []);
 
-  // ✅ App-Sichtbarkeit für Presence
   useEffect(() => {
     const updateVisibility = () => setAppVisible(!document.hidden);
     const markHidden = () => setAppVisible(false);
@@ -227,37 +208,29 @@ const MyApp = () => {
     };
   }, []);
 
-  // ✅ Presence in Firestore: Online nur wenn eingeloggt + Netz + App sichtbar
+  // Presence in Firestore: online nur dann, wenn die App sichtbar ist und eine Verbindung besteht.
   useEffect(() => {
     const currentUid = user?.uid || null;
     const previousUid = presenceUidRef.current;
 
     if (previousUid && previousUid !== currentUid) {
-      setDoc(doc(db, 'users', previousUid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
-        console.error('[presence] mark previous user offline failed', e)
-      );
+      setDoc(doc(db, 'users', previousUid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     }
 
     presenceUidRef.current = currentUid;
     if (!currentUid) return;
 
     const shouldBeOnline = online && appVisible;
-    setDoc(doc(db, 'users', currentUid), { online: shouldBeOnline, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
-      console.error('[presence] update failed', e)
-    );
+    setDoc(doc(db, 'users', currentUid), { online: shouldBeOnline, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
   }, [user, online, appVisible]);
 
-  // ✅ Presence-Heartbeat: lastSeen regelmäßig aktualisieren, solange der Nutzer wirklich online ist
   useEffect(() => {
     const uid = user?.uid || null;
-    const shouldBeOnline = !!uid && online && appVisible;
-    if (!shouldBeOnline) return;
+    if (!uid || !online || !appVisible) return;
 
     const ref = doc(db, 'users', uid);
     const intervalId = window.setInterval(() => {
-      setDoc(ref, { online: true, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
-        console.error('[presence] heartbeat failed', e)
-      );
+      setDoc(ref, { online: true, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     }, 30000);
 
     return () => {
@@ -265,30 +238,25 @@ const MyApp = () => {
     };
   }, [user, online, appVisible]);
 
-  // ✅ Beim Unmount sicher offline setzen
   useEffect(() => {
     return () => {
       const uid = presenceUidRef.current;
       if (!uid) return;
-      setDoc(doc(db, 'users', uid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch((e) =>
-        console.error('[presence] unmount offline failed', e)
-      );
+      setDoc(doc(db, 'users', uid), { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     };
   }, []);
 
-  // ✅ Online/Offline Toast nur bei Statuswechsel
   useEffect(() => {
     if (!user) return;
     if (!onlineInitRef.current) {
       onlineInitRef.current = true;
       return;
     }
-    f7.toast
-      .create({
-        text: online ? 'Online' : 'Offline',
-        closeTimeout: 1500,
-      })
-      .open();
+
+    f7.toast.create({
+      text: online ? 'Online' : 'Offline',
+      closeTimeout: 1500,
+    }).open();
   }, [online, user]);
 
   useEffect(() => {
@@ -296,30 +264,33 @@ const MyApp = () => {
     cacheSudokuSaves(user.uid);
   }, [user, online]);
 
-  // ✅ Roter Punkt bei neuen Freundschaftsanfragen
+  // Zeigt offene Freundschaftsanfragen direkt am Tab an.
   useEffect(() => {
     let unsub = null;
-    const offAuth = onAuthStateChanged(auth, (u) => {
+
+    const offAuth = onAuthStateChanged(auth, (nextUser) => {
       if (unsub) {
         unsub();
         unsub = null;
       }
+
       setIncomingCount(0);
-      if (!u) return;
-      const q = query(
+      if (!nextUser) return;
+
+      const requestsQuery = query(
         collection(db, 'friendRequests'),
-        where('toUid', '==', u.uid),
+        where('toUid', '==', nextUser.uid),
         where('status', '==', 'pending')
       );
-      unsub = onSnapshot(q, (snap) => setIncomingCount(snap.size));
+      unsub = onSnapshot(requestsQuery, (snap) => setIncomingCount(snap.size));
     });
+
     return () => {
       if (unsub) unsub();
       offAuth();
     };
   }, []);
 
-  // ✅ Bei Änderung Dark Mode sofort anwenden + speichern
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
     f7ready(() => {
@@ -327,47 +298,13 @@ const MyApp = () => {
     });
   }, [darkMode]);
 
-  const alertLoginData = () => {
-    f7.dialog.alert(`Username: ${username}<br>Password: ${password}`, () => {
-      f7.loginScreen.close();
-    });
-  };
-
   if (!authReady || !minimumSplashDone) {
     return <LoadingScreen />;
   }
 
   return (
     <App {...f7params}>
-      {/* Left panel */}
-      <Panel left cover dark>
-        <View>
-          <Page>
-            <Navbar title="Left Panel" />
-            <Block>Left panel content goes here</Block>
-          </Page>
-        </View>
-      </Panel>
-
-      {/* Right panel */}
-      <Panel right reveal dark>
-        <View>
-          <Page>
-            <Navbar title="Right Panel" />
-            <Block>Right panel content goes here</Block>
-
-            {/* ✅ Dark Mode Toggle (optional) */}
-            <List strong inset>
-              <ListButton
-                title={darkMode ? 'Dark Mode: AN' : 'Dark Mode: AUS'}
-                onClick={() => setDarkMode((v) => !v)}
-              />
-            </List>
-          </Page>
-        </View>
-      </Panel>
-
-      {/* ✅ Views/Tabs */}
+      {/* Drei Hauptbereiche der App: Spiel, Freunde und Rangliste. */}
       <Views tabs className="safe-areas">
         <Toolbar tabbar icons bottom>
           <Link
@@ -398,57 +335,6 @@ const MyApp = () => {
         <View id="view-friends" tab url="/friends/" />
         <View id="view-leaderboard" tab url="/leaderboard/" />
       </Views>
-
-      {/* Popup (optional) */}
-      <Popup id="my-popup">
-        <View>
-          <Page>
-            <Navbar title="Popup">
-              <NavRight>
-                <Link popupClose>Close</Link>
-              </NavRight>
-            </Navbar>
-            <Block>
-              <p>Popup content goes here.</p>
-            </Block>
-          </Page>
-        </View>
-      </Popup>
-
-      {/* LoginScreen (optional, kannst du später entfernen) */}
-      <LoginScreen id="my-login-screen">
-        <View>
-          <Page loginScreen>
-            <LoginScreenTitle>Login</LoginScreenTitle>
-            <List form>
-              <ListInput
-                type="text"
-                name="username"
-                placeholder="Your username"
-                value={username}
-                onInput={(e) => setUsername(e.target.value)}
-              />
-              <ListInput
-                type="password"
-                name="password"
-                placeholder="Your password"
-                value={password}
-                onInput={(e) => setPassword(e.target.value)}
-              />
-            </List>
-            <List>
-              <ListButton title="Sign In" onClick={alertLoginData} />
-              <BlockFooter>
-                Some text about login information.<br />
-                Click &quot;Sign In&quot; to close Login Screen
-              </BlockFooter>
-            </List>
-          </Page>
-        </View>
-      </LoginScreen>
-
     </App>
   );
-};
-
-export default MyApp;
+}

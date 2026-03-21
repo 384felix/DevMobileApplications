@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Page,
   Navbar,
@@ -160,8 +160,7 @@ const ProfilePage = () => {
       }
       setLocationPermission('granted');
     } catch (e) {
-      // Auf Web kann checkPermissions/requestPermissions fehlschlagen; wir versuchen dann Browser-Geolocation.
-      console.warn('[profile] permission check fallback to browser geolocation', e);
+      // Auf Web kann die Capacitor-Abfrage fehlschlagen; dann wird Browser-Geolocation genutzt.
     }
 
     const options = {
@@ -195,9 +194,7 @@ const ProfilePage = () => {
       const geo = await reverseGeocodeCity(lat, lng);
       city = geo.city;
       country = geo.country;
-    } catch (e) {
-      console.error('[profile] reverse geocode failed', e);
-    }
+    } catch {}
 
     return { lat, lng, city, country };
   };
@@ -214,6 +211,7 @@ const ProfilePage = () => {
   // ---- Online Listener
   useEffect(() => {
     let listener;
+    let cleanupFallback = null;
 
     const initNetwork = async () => {
       try {
@@ -229,18 +227,18 @@ const ProfilePage = () => {
         window.addEventListener('online', update);
         window.addEventListener('offline', update);
 
-        return () => {
+        cleanupFallback = () => {
           window.removeEventListener('online', update);
           window.removeEventListener('offline', update);
         };
       }
     };
 
-    const cleanupFallback = initNetwork();
+    initNetwork();
 
     return () => {
       if (listener) listener.remove();
-      if (typeof cleanupFallback === 'function') cleanupFallback();
+      if (cleanupFallback) cleanupFallback();
     };
   }, []);
 
@@ -283,16 +281,15 @@ const ProfilePage = () => {
                 { merge: true }
               );
             }
-          } catch (e) {
-            console.error('[profile] load fallback reverse geocode failed', e);
-          }
+          } catch {}
         }
       } else {
         setProfile({ username: '', avatarId: AVATAR_IDS[0] });
         setLocationStatus('Unbekannt');
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      setProfile({ username: '', avatarId: AVATAR_IDS[0] });
+      setLocationStatus('Unbekannt');
     } finally {
       setProfileLoading(false);
     }
@@ -336,7 +333,6 @@ const ProfilePage = () => {
           { merge: true }
         );
       } catch (e) {
-        console.error('[profile] location update failed', e);
         const failReason =
           e?.code === 'no-coordinates'
             ? 'no-coordinates'
@@ -391,7 +387,6 @@ const ProfilePage = () => {
 
       f7.toast.create({ text: 'Standort erfolgreich aktualisiert.', closeTimeout: 1800 }).open();
     } catch (e) {
-      console.error('[profile] sendSelfLocationRequest error:', e);
       const failReason =
         e?.code === 'no-coordinates'
           ? 'no-coordinates'
@@ -548,9 +543,7 @@ const ProfilePage = () => {
         // User wieder löschen, falls zwischenzeitlich vergeben wurde
         try {
           if (auth.currentUser) await auth.currentUser.delete();
-        } catch (e) {
-          console.error('Failed to delete user after username taken', e);
-        }
+        } catch {}
         f7.dialog.alert('Dieser Username ist leider schon vergeben. Bitte wähle einen anderen.');
         return;
       }
@@ -568,8 +561,7 @@ const ProfilePage = () => {
           { merge: true }
         );
       }
-    } catch (e) {
-      console.error('[profile] logout offline update error', e);
+    } catch {
     } finally {
       await signOut(auth);
       setEmail('');
@@ -655,8 +647,6 @@ const ProfilePage = () => {
 
       f7.toast.create({ text: 'Profil gespeichert ✅', closeTimeout: 1500 }).open();
     } catch (e) {
-      console.error(e);
-
       if ((e?.message || '').includes('USERNAME_TAKEN')) {
         f7.dialog.alert('Dieser Username ist leider schon vergeben. Bitte wähle einen anderen.');
         return;
