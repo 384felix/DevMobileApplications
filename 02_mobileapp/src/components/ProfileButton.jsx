@@ -1,3 +1,11 @@
+/*
+ * Datei: ProfileButton.jsx
+ * Inhalt: Diese Datei enthält den wiederverwendbaren Profil-Button
+ *         für die Navigationsleisten der App. Zusätzlich zeigt der
+ *         Button bei eingeloggten Nutzern einen kleinen Statuspunkt,
+ *         der den aktuellen Online-Zustand sichtbar macht.
+ */
+
 import { useEffect, useState } from 'react';
 import { Link } from 'framework7-react';
 import { auth } from '../js/firebase';

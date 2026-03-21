@@ -1,3 +1,11 @@
+/*
+ * Datei: profile.jsx
+ * Inhalt: Diese Datei verwaltet den gesamten Profilbereich der App.
+ *         Enthalten sind Login, Registrierung, Logout und die Pflege
+ *         von Benutzername, Avatar und Standort. Zusätzlich werden
+ *         Profildaten aus Firebase geladen und wieder gespeichert.
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import {
   Page,

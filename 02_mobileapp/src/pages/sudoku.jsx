@@ -1,3 +1,11 @@
+/*
+ * Datei: sudoku.jsx
+ * Inhalt: Diese Datei enthält die zentrale Spiellogik der Sudoku-App.
+ *         Hier werden Rätsel geladen, Eingaben verarbeitet, Spielstände
+ *         gespeichert und geladene Daten rekonstruiert. Außerdem erfolgt
+ *         hier die Prüfung, ob ein Sudoku korrekt gelöst wurde.
+ */
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Page,
@@ -35,6 +43,8 @@ const SOLUTION_BASE = [
 
 const clone9Static = (g) => g.map((row) => row.slice());
 
+// Aus einem Seed wird ein reproduzierbarer Zufallsstrom erzeugt.
+// So kann dieselbe Sudoku-Variante später wieder exakt rekonstruiert werden.
 function lcg(seed) {
     let s = seed | 0;
     return () => {
@@ -57,6 +67,8 @@ function shuffleInPlace(arr, rand) {
     }
 }
 
+// Erzeugt aus der festen Basislösung eine neue gültige Lösungsvariante,
+// indem Zahlen sowie Zeilen- und Spaltenblöcke kontrolliert vertauscht werden.
 function permuteSolutionFromSeed(seed) {
     const rand = rngFromSeed(seed);
 
@@ -98,6 +110,8 @@ function permuteSolutionFromSeed(seed) {
     return out;
 }
 
+// Die Maske bestimmt, welche Felder als Vorgaben sichtbar bleiben.
+// "1" bedeutet sichtbar, "0" bedeutet leeres Eingabefeld.
 function makeMask(maskSeed, clues) {
     const rand = rngFromSeed(maskSeed);
     const total = 81;
@@ -109,6 +123,7 @@ function makeMask(maskSeed, clues) {
     return mask.join('');
 }
 
+// Baut das eigentliche Sudoku-Rätsel aus Lösungsvariante und Maske zusammen.
 function buildPuzzleFromSeedAndMask(seed, mask) {
     const solution = permuteSolutionFromSeed(seed);
     const puzzle = clone9Static(solution);
@@ -128,6 +143,7 @@ const HARD_PUZZLES = (puzzles?.hard || []).map((p) => ({ seed: p.seed, mask: p.m
 const clone9 = (g) => g.map((row) => row.slice());
 const computeGiven = (p) => p.map((row) => row.map((v) => v !== 0));
 
+// Ordnet den gewählten Schwierigkeitsgrad dem passenden Rätselpool zu.
 function poolByDiff(diff) {
     if (diff === 'medium') return MEDIUM_PUZZLES;
     if (diff === 'hard') return HARD_PUZZLES;
@@ -139,6 +155,7 @@ function normalizeIndex(idx, len) {
     return ((idx % len) + len) % len;
 }
 
+// Daily-Sudokus basieren auf dem Tagesdatum, damit pro Tag immer dasselbe Rätsel erscheint.
 function getLocalDateKey(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -146,6 +163,7 @@ function getLocalDateKey(d = new Date()) {
     return `${y}-${m}-${day}`;
 }
 
+// Der String-Hash wird unter anderem genutzt, um täglich reproduzierbar dasselbe Sudoku zu wählen.
 function hashStringToInt(s) {
     let h = 0;
     for (let i = 0; i < s.length; i++) {
@@ -154,6 +172,7 @@ function hashStringToInt(s) {
     return Math.abs(h);
 }
 
+// Wählt ein beliebiges Sudoku aus dem Schwierigkeits-Pool.
 function pickRandomPuzzleByDifficulty(diff) {
     const pool = poolByDiff(diff);
     const idx = Math.floor(Math.random() * pool.length);
@@ -166,6 +185,7 @@ function pickRandomPuzzleByDifficulty(diff) {
     };
 }
 
+// Wählt ein tägliches Sudoku deterministisch über Datum und Schwierigkeitsgrad.
 function pickDailyPuzzleByDifficulty(diff, dateKey) {
     const pool = poolByDiff(diff);
     const idx = hashStringToInt(`${dateKey}:${diff}`) % pool.length;
@@ -178,6 +198,7 @@ function pickDailyPuzzleByDifficulty(diff, dateKey) {
     };
 }
 
+// Lädt ein Sudoku gezielt über seinen Listenindex.
 function pickPuzzleByIndex(diff, index) {
     const pool = poolByDiff(diff);
     const idx = normalizeIndex(index, pool.length);
@@ -190,6 +211,7 @@ function pickPuzzleByIndex(diff, index) {
     };
 }
 
+// Diese lokale Map merkt sich gelöste Offline-Sudokus auch ohne Cloud-Zugriff.
 function getSolvedStorageKey(uid) {
     return `sudokuSolved_v1:${uid || 'anon'}`;
 }
@@ -227,6 +249,7 @@ function difficultyLabel(diff) {
     return 'Sudoku';
 }
 
+// Der zuletzt bearbeitete Datensatz wird im Menü wieder angezeigt und kann dort fortgesetzt werden.
 function saveLastPlayed(payload) {
     try {
         localStorage.setItem('sudokuLastPlayed', JSON.stringify(payload));
@@ -242,6 +265,8 @@ function buildLastPlayedPayload(mode, difficulty, puzzleListIndex, puzzleIndex) 
     return { mode: 'offline', difficulty, index: idx };
 }
 
+// Die Dokument-ID hängt vom Spielmodus ab:
+// Daily-Sudokus werden nach Datum gespeichert, Offline-Sudokus nach Index.
 function buildSaveDocId(uid, mode, difficulty, puzzleListIndex, puzzleIndex) {
     if (!uid) return null;
     if (mode === 'daily') {
@@ -254,6 +279,7 @@ function buildSaveDocId(uid, mode, difficulty, puzzleListIndex, puzzleIndex) {
     return `${uid}_offline_${difficulty}_${idx}`;
 }
 
+// Für Offline-Fälle wird ein zuvor zwischengespeicherter Spielstand aus localStorage gelesen.
 function readCachedSave(uid, difficulty, puzzleIndex) {
     if (!uid) return null;
     if (!Number.isFinite(puzzleIndex)) return null;
@@ -268,6 +294,8 @@ function readCachedSave(uid, difficulty, puzzleIndex) {
     }
 }
 
+// Eine Auswahl aus Menü oder Liste wird kurz in sessionStorage abgelegt,
+// damit sie nach der Navigation auf die Spielseite sicher verfügbar ist.
 function readPendingSelection() {
     try {
         const raw = sessionStorage.getItem('sudokuSelection');
@@ -326,6 +354,7 @@ function isCellInvalid(grid, r, c) {
     return false;
 }
 
+// Diese Matrix steuert die visuelle Fehler-Markierung im Raster.
 function computeInvalidMatrix(grid, given, helpEnabled) {
     const invalid = Array.from({ length: 9 }, () => Array(9).fill(false));
     if (!helpEnabled) return invalid;
@@ -340,6 +369,8 @@ function computeInvalidMatrix(grid, given, helpEnabled) {
     return invalid;
 }
 
+// Abschlussprüfung für das ganze Sudoku:
+// jede Zeile, jede Spalte und jeder Block muss die Zahlen 1 bis 9 genau einmal enthalten.
 function isSolvedGrid(grid) {
     const okSet = (arr) => {
         const s = new Set(arr);
@@ -387,6 +418,7 @@ export default function SudokuPage(props) {
     const historyRef = useRef([]);
     const [canUndo, setCanUndo] = useState(false);
 
+    // Setzt eine Body-Klasse, damit die Spielseite gezielt eigenes Layout und Styling verwenden kann.
     useEffect(() => {
         document.body.classList.add('in-sudoku-page');
         return () => {
@@ -394,7 +426,8 @@ export default function SudokuPage(props) {
         };
     }, []);
 
-    // -------------------------
+    // Anfangszustand des Spiels:
+    // Beim ersten Laden wird ein lokales Start-Sudoku vorbereitet.
     const initialPickRef = useRef(null);
     if (!initialPickRef.current) {
         initialPickRef.current = pickRandomPuzzleByDifficulty('easy');
@@ -414,8 +447,10 @@ export default function SudokuPage(props) {
     const [helpEnabled, setHelpEnabled] = useState(true);
     const [solved, setSolved] = useState(false);
 
+    // "invalid" wird nur aus aktuellem Feldzustand, Vorgaben und Hilfe-Schalter abgeleitet.
     const invalid = useMemo(() => computeInvalidMatrix(grid, given, helpEnabled), [grid, given, helpEnabled]);
 
+    // Diese Information steuert, ob der Button "Ergebnis prüfen" eingeblendet wird.
     const isComplete = useMemo(() => {
         for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (grid[r][c] === 0) return false;
         return true;
@@ -426,6 +461,7 @@ export default function SudokuPage(props) {
 
     const handleSelect = (r, c) => setSelected({ r, c });
 
+    // Der Undo-Speicher wird bei neuem Rätsel oder geladenem Save komplett zurückgesetzt.
     const clearHistory = () => {
         historyRef.current = [];
         setCanUndo(false);
@@ -437,6 +473,8 @@ export default function SudokuPage(props) {
         setCanUndo(true);
     };
 
+    // Trägt eine Zahl in die aktuell ausgewählte Zelle ein,
+    // sofern die Zelle nicht zu den festen Vorgaben gehört.
     const setNumber = (n) => {
         if (solved) return;
         const { r, c } = selected;
@@ -466,6 +504,7 @@ export default function SudokuPage(props) {
         return () => unsub();
     }, []);
 
+    // Der Anzeigename wird für Feed-Ereignisse und gespeicherte Erfolge benötigt.
     useEffect(() => {
         if (!user) {
             setDisplayName('');
@@ -489,6 +528,7 @@ export default function SudokuPage(props) {
         return doc(db, 'sudokuSaves', docId);
     }, [user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
+    // Übernimmt einen geladenen Spielstand vollständig in den aktuellen React-Zustand.
     const applyLoadedSave = (data, fallbackMode, fallbackDifficulty, fallbackIndex) => {
         // Beim Laden wird zuerst versucht, den gespeicherten String-Stand wiederherzustellen.
         // Falls das nicht möglich ist, wird das Sudoku aus Seed und Maske rekonstruiert.
@@ -529,6 +569,8 @@ export default function SudokuPage(props) {
     };
 
     const fetchFromFirebase = async () => {
+        // Beim Laden wird zuerst geprüft, ob ein Cloud-Save erreichbar ist.
+        // Ohne Netz wird stattdessen nach einem lokalen Cache-Eintrag gesucht.
         if (!saveRef) {
             return;
         }
@@ -591,6 +633,7 @@ export default function SudokuPage(props) {
     }, [firebaseCheckRequested, saveRef]);
 
     const manualSave = async () => {
+        // Manueller Speicherpunkt über den Button in der Spielansicht.
         if (!user) {
             f7.dialog.alert('Bitte zuerst einloggen, um zu speichern.');
             return;
@@ -677,7 +720,7 @@ export default function SudokuPage(props) {
         };
     }, [saveRef, user, mode, difficulty, puzzleIndex, puzzleSeed, puzzleMask, puzzle, grid, helpEnabled, solved, selected]);
 
-    // Keyboard
+    // Tastatursteuerung für Desktop und externe Tastaturen.
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!selected) return;
@@ -734,6 +777,7 @@ export default function SudokuPage(props) {
         if (nextDifficulty) setDifficulty(finalDifficulty);
 
         if (hasPuzzleIndex) {
+            // Bei Offline-Sudokus aus der Liste wird der exakte Listenindex beibehalten.
             const pick = pickPuzzleByIndex(finalDifficulty, parsedPuzzleIndex);
             setPuzzle(pick.puzzle);
             setPuzzleIndex(pick.poolIndex);
@@ -757,6 +801,7 @@ export default function SudokuPage(props) {
         }
     };
 
+    // Setzt das aktuelle Rätsel auf seinen ursprünglichen Startzustand zurück.
     const resetPuzzle = () => {
         setSolved(false);
         setGrid(clone9(puzzle));
@@ -775,6 +820,7 @@ export default function SudokuPage(props) {
     };
 
     useEffect(() => {
+        // Reagiert auf Query-Parameter wie mode, difficulty und puzzleIndex.
         applySelection(props?.f7route?.query || {});
     }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
@@ -814,6 +860,7 @@ export default function SudokuPage(props) {
                 }
             }
             if (mode === 'offline') {
+                // Gelöste Offline-Sudokus werden lokal und optional zusätzlich in Firebase vermerkt.
                 const idx = Number.isFinite(puzzleListIndex) ? puzzleListIndex : puzzleIndex;
                 if (Number.isFinite(idx)) {
                     markSolved(user?.uid, difficulty, idx);
@@ -853,6 +900,8 @@ export default function SudokuPage(props) {
         <Page
             name="sudoku"
             onPageBeforeIn={() => {
+                // Falls unmittelbar vor dem Seitenwechsel eine Auswahl gespeichert wurde,
+                // wird sie hier sicher angewendet.
                 const pending = readPendingSelection();
                 if (pending) {
                     applySelection(pending);
@@ -876,6 +925,7 @@ export default function SudokuPage(props) {
             </Navbar>
 
             <Block className="sudoku-actions-block">
+                {/* Die Aktionsleiste bündelt Undo, Speichern und Abschlussprüfung. */}
                 <div className="sudoku-actions">
                     <Button outline disabled={!canUndo || savingNow || loadingSave} onClick={undoLastMove}>
                         Rückgängig
@@ -923,6 +973,7 @@ export default function SudokuPage(props) {
                         opacity: 0.01,
                     }}
                     onInput={(e) => {
+                        // Mobile Eingaben laufen über dieses unsichtbare Eingabefeld in die Spiellogik.
                         const last = e.target.value.slice(-1);
                         if (last >= '1' && last <= '9') setNumber(parseInt(last, 10));
                         else if (last === '0') setNumber(0);

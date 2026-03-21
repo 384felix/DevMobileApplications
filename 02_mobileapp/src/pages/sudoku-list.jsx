@@ -1,3 +1,11 @@
+/*
+ * Datei: sudoku-list.jsx
+ * Inhalt: Diese Datei zeigt die Liste der verfügbaren Offline-Sudokus
+ *         für einen ausgewählten Schwierigkeitsgrad. Zu jedem Eintrag
+ *         wird angezeigt, ob das Sudoku ungelöst, in Bearbeitung
+ *         oder bereits vollständig gelöst ist.
+ */
+
 import { useEffect, useState } from 'react';
 import { Page, Navbar, NavRight, List, ListItem, Link, f7 } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';

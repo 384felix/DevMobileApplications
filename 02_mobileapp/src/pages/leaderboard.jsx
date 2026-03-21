@@ -1,3 +1,11 @@
+/*
+ * Datei: leaderboard.jsx
+ * Inhalt: Diese Datei stellt die Rangliste und den Live-Feed der App dar.
+ *         Sie verarbeitet gespeicherte Sudoku-Ereignisse, berechnet Punkte
+ *         für die Rangfolge und erlaubt das Filtern nach Zeitraum,
+ *         Schwierigkeitsgrad und Freundeskreis.
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import { Page, Navbar, Block, NavRight, List, ListItem, Button, f7 } from 'framework7-react';
 import ProfileButton from '../components/ProfileButton.jsx';

@@ -1,3 +1,11 @@
+/*
+ * Datei: app.jsx
+ * Inhalt: Diese Datei definiert die Hauptstruktur der gesamten App.
+ *         Hier befinden sich die Tab-Navigation, globale Statuswerte,
+ *         Ladeverhalten, Online-Erkennung und die allgemeine
+ *         Presence-Logik für angemeldete Nutzer.
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { f7, f7ready, App, Views, View, Toolbar, Link } from 'framework7-react';
 import { onAuthStateChanged } from 'firebase/auth';

@@ -1,3 +1,11 @@
+/*
+ * Datei: start.jsx
+ * Inhalt: Diese Datei bildet die visuelle Startseite der Sudoku-App.
+ *         Zu sehen sind das runde App-Logo, ein kurzer Einführungstext
+ *         sowie die beiden zentralen Einstiege in die Daily Challenge
+ *         und in das allgemeine Sudoku-Menü.
+ */
+
 import { Page, Block, Button } from 'framework7-react';
 
 export default function StartPage() {

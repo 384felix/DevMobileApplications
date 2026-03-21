@@ -1,3 +1,11 @@
+/*
+ * Datei: sudoku-menu.jsx
+ * Inhalt: Diese Datei enthält das zentrale Menü für die Auswahl der Sudoku-Modi.
+ *         Angezeigt werden die Daily Challenge, die drei Offline-Schwierigkeiten,
+ *         der bisherige Fortschritt pro Schwierigkeitsgrad sowie
+ *         die Möglichkeit, das zuletzt bearbeitete Sudoku fortzusetzen.
+ */
+
 import { Page, Navbar, NavRight, Block, Button, f7 } from 'framework7-react';
 import { useEffect, useState } from 'react';
 import ProfileButton from '../components/ProfileButton.jsx';

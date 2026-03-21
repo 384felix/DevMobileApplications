@@ -1,4 +1,11 @@
-// friends.jsx
+/*
+ * Datei: friends.jsx
+ * Inhalt: Diese Datei bildet den sozialen Bereich für Freundschaften ab.
+ *         Hier finden sich Nutzersuche, Freundschaftsanfragen,
+ *         bestehende Freundeslisten sowie zusätzliche Informationen
+ *         wie Online-Status, Avatare und gespeicherte Standorte.
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Page,
@@ -37,6 +44,7 @@ import {
 const ONLINE_STALE_MS = 60 * 1000;
 const DEFAULT_AVATAR_ID = 'Avatar_01';
 
+// Firestore-Zeitstempel und Date-Objekte werden für Vergleiche in Millisekunden umgewandelt.
 function toMillis(ts) {
     if (!ts) return null;
     if (typeof ts?.toMillis === 'function') return ts.toMillis();
@@ -44,6 +52,7 @@ function toMillis(ts) {
     return null;
 }
 
+// Erzeugt lesbare Texte wie "gerade eben" oder "vor 5 Min." für den letzten Online-Zeitpunkt.
 function formatLastSeenLabel(lastSeenMs, nowMs) {
     if (!Number.isFinite(lastSeenMs)) return 'Zuletzt online: unbekannt';
     const diffMs = Math.max(0, nowMs - lastSeenMs);
@@ -57,11 +66,13 @@ function formatLastSeenLabel(lastSeenMs, nowMs) {
     return `Zuletzt online: vor ${diffDays} Tag${diffDays === 1 ? '' : 'en'}`;
 }
 
+// Liefert die Bildadresse des gewählten Avatars oder einen Standard-Avatar.
 function avatarUrlFromId(avatarId) {
     const safeId = avatarId || DEFAULT_AVATAR_ID;
     return `${import.meta.env.BASE_URL}Avatars/${safeId}.png`;
 }
 
+// Versucht aus dem gespeicherten Profil direkt ein lesbares Standortlabel zu bilden.
 function locationLabelFromProfile(profile) {
     const loc = profile?.lastLocation || null;
     if (!loc) return 'Unbekannt';
@@ -73,12 +84,14 @@ function locationLabelFromProfile(profile) {
     return 'Unbekannt';
 }
 
+// Prüft, ob überhaupt Koordinaten vorhanden sind, die noch in Stadt/Land übersetzt werden können.
 function hasCoords(lastLocation) {
     const lat = lastLocation?.lat;
     const lng = lastLocation?.lng;
     return Number.isFinite(lat) && Number.isFinite(lng);
 }
 
+// Fallback-Geocoding für Fälle, in denen nur rohe Koordinaten gespeichert wurden.
 async function reverseGeocodeCity(lat, lng) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
         lat
@@ -97,7 +110,7 @@ async function reverseGeocodeCity(lat, lng) {
     return 'Unbekannt';
 }
 
-// friendId deterministisch
+// Die Freundschafts-ID ist bewusst deterministisch, damit ein Freundespaar nur ein gemeinsames Dokument erhält.
 function makeFriendId(uidA, uidB) {
     return [uidA, uidB].sort().join('_');
 }
@@ -135,6 +148,7 @@ export default function FriendsPage({ f7router }) {
         return () => window.clearInterval(id);
     }, []);
 
+    // Eigene Nutzer-ID als Kurzform, damit die folgenden Abfragen kompakter bleiben.
     const myUid = user?.uid || null;
 
     // -------------------------
@@ -177,7 +191,7 @@ export default function FriendsPage({ f7router }) {
     useEffect(() => {
         if (!myUid) return;
 
-        // Incoming: nur pending
+        // Incoming: nur offene Anfragen, die an den aktuellen Nutzer gerichtet sind
         const qIn = query(
             collection(db, 'friendRequests'),
             where('toUid', '==', myUid),
@@ -185,7 +199,7 @@ export default function FriendsPage({ f7router }) {
             orderBy('createdAt', 'desc')
         );
 
-        // Outgoing: nur pending
+        // Outgoing: nur offene Anfragen, die vom aktuellen Nutzer verschickt wurden
         const qOut = query(
             collection(db, 'friendRequests'),
             where('fromUid', '==', myUid),
@@ -220,7 +234,7 @@ export default function FriendsPage({ f7router }) {
     }, [myUid]);
 
     // -------------------------
-    // Friends live
+    // Eigentliche Freundschaften werden als eigene Dokumente live beobachtet
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -251,6 +265,7 @@ export default function FriendsPage({ f7router }) {
     useEffect(() => {
         if (!myUid) return;
 
+        // Aus allen Freundschaftsdokumenten werden nur die jeweils anderen Nutzer-IDs extrahiert.
         const friendUids = [...new Set(
             friendsDocs
                 .flatMap((f) => f.uids || [])
@@ -309,6 +324,7 @@ export default function FriendsPage({ f7router }) {
             if (r.toUid && r.toUid !== myUid) otherUids.add(r.toUid);
         });
 
+        // Bereits bekannte Profile werden übersprungen, nur fehlende werden nachgeladen.
         const missing = [...otherUids].filter((uid) => !friendsProfiles[uid]);
         if (missing.length === 0) return;
 
@@ -396,6 +412,7 @@ export default function FriendsPage({ f7router }) {
             return;
         }
 
+        // Leere Suche soll keinen unnötigen Datenbankzugriff auslösen.
         const qText = searchText.trim();
         if (!qText) {
             setSearchResults([]);
@@ -406,6 +423,7 @@ export default function FriendsPage({ f7router }) {
         try {
             const key = qText.toLowerCase();
 
+            // Gesucht wird exakt über usernameLower, damit das Verhalten eindeutig bleibt.
             const q1 = query(collection(db, 'users'), where('usernameLower', '==', key), limit(10));
             const snap = await getDocs(q1);
 
@@ -447,7 +465,7 @@ export default function FriendsPage({ f7router }) {
         }
 
         try {
-            // Duplikatcheck (pending)
+            // Vor dem Schreiben wird geprüft, ob bereits eine offene Anfrage an denselben Nutzer existiert.
             const qDup = query(
                 collection(db, 'friendRequests'),
                 where('fromUid', '==', myUid),
@@ -463,7 +481,7 @@ export default function FriendsPage({ f7router }) {
 
             const now = new Date();
 
-            const docRef = await addDoc(collection(db, 'friendRequests'), {
+            await addDoc(collection(db, 'friendRequests'), {
                 fromUid: myUid,
                 toUid,
                 status: 'pending',
@@ -491,6 +509,7 @@ export default function FriendsPage({ f7router }) {
         if (!myUid) return;
 
         try {
+            // Zuerst wird die Anfrage selbst auf "accepted" gesetzt.
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'accepted',
                 updatedAt: new Date(),
@@ -499,7 +518,7 @@ export default function FriendsPage({ f7router }) {
             // incoming wird eh durch Snapshot aktualisiert – der Filter ist nur UX sofort
             setIncoming((prev) => prev.filter((r) => r.id !== req.id));
 
-            // friend doc deterministisch: friends/{friendId}
+            // Danach wird das eigentliche Freundschaftsdokument erzeugt oder ergänzt.
             const friendId = makeFriendId(req.fromUid, req.toUid);
             await setDoc(
                 doc(db, 'friends', friendId),
@@ -520,6 +539,7 @@ export default function FriendsPage({ f7router }) {
 
     const rejectRequest = async (req) => {
         try {
+            // Ablehnen bedeutet: Anfrage bleibt dokumentiert, zählt aber nicht mehr als offen.
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'rejected',
                 updatedAt: new Date(),
@@ -535,6 +555,7 @@ export default function FriendsPage({ f7router }) {
 
     const cancelRequest = async (req) => {
         try {
+            // Stornieren betrifft nur selbst verschickte, noch offene Anfragen.
             await updateDoc(doc(db, 'friendRequests', req.id), {
                 status: 'cancelled',
                 updatedAt: new Date(),
@@ -553,6 +574,7 @@ export default function FriendsPage({ f7router }) {
     };
 
     const removeFriend = async (friendDoc) => {
+        // Vor dem Entfernen wird bewusst eine Rückfrage angezeigt.
         const confirmed = await new Promise((resolve) => {
             f7.dialog.confirm(
                 'Möchtest du diesen Freund wirklich entfernen?',
@@ -571,7 +593,7 @@ export default function FriendsPage({ f7router }) {
         }
     };
 
-    // Anzeigehelper: Username bevorzugt
+    // Anzeigehelfer: im UI wird nach Möglichkeit immer der Username statt der UID gezeigt.
     const labelForUid = (uid) => {
         const p = friendsProfiles[uid];
         if (p?.username) return p.username;
@@ -585,9 +607,10 @@ export default function FriendsPage({ f7router }) {
 
     const getIncomingForUid = (uid) => incoming.find((r) => r.fromUid === uid);
 
-    // outgoing ist pending-only, daher reicht toUid match
+    // Outgoing enthält nur offene Anfragen, daher reicht die Ziel-ID für die Zuordnung.
     const getOutgoingPendingForUid = (uid) => outgoing.find((r) => r.toUid === uid);
 
+    // Diese Menge erleichtert spätere Prüfungen, ob ein Nutzer bereits in der Freundesliste ist.
     const friendUidSet = useMemo(() => {
         const s = new Set();
         friendsDocs.forEach((f) => {
@@ -620,7 +643,7 @@ export default function FriendsPage({ f7router }) {
                 </Block>
             ) : (
                 <>
-                    {/* Suche */}
+                    {/* Suchbereich für das direkte Finden anderer Nutzer über ihren Username */}
                     <BlockTitle>Freunde suchen</BlockTitle>
                     <Block strong inset>
                         <List strong inset dividersIos style={{ margin: 0 }}>
@@ -681,7 +704,7 @@ export default function FriendsPage({ f7router }) {
                         )}
                     </Block>
 
-                    {/* Vorschläge */}
+                    {/* Vorschläge zeigen einige aktuelle Nutzer, die noch nicht in der Freundesliste sind */}
                     <BlockTitle>Vorschläge</BlockTitle>
                     <Block strong inset>
                         {loadingSuggestions ? (
@@ -726,7 +749,7 @@ export default function FriendsPage({ f7router }) {
                         )}
                     </Block>
 
-                    {/* Eingehend */}
+                    {/* Eingehende Anfragen können hier direkt angenommen oder abgelehnt werden */}
                     <BlockTitle>{incoming.length === 0 ? 'Anfragen' : 'Anfragen (eingehend)'}</BlockTitle>
                     <Block strong inset>
                         {incoming.length === 0 ? (
@@ -750,7 +773,7 @@ export default function FriendsPage({ f7router }) {
                         )}
                     </Block>
 
-                    {/* Freunde */}
+                    {/* Die Freundesliste bündelt Profilbild, Online-Status, Standort und Entfernen-Aktion */}
                     <BlockTitle>Meine Freunde</BlockTitle>
                     <Block strong inset>
                         {friendsDocs.length === 0 ? (

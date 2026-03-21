@@ -1,3 +1,11 @@
+/*
+ * Datei: SudokuGrid.jsx
+ * Inhalt: Diese Datei rendert das sichtbare 9x9-Sudoku-Raster.
+ *         Sie kümmert sich um die Darstellung einzelner Zellen,
+ *         markiert feste, ausgewählte und fehlerhafte Felder
+ *         und leitet Klicks an die Spiellogik weiter.
+ */
+
 import './sudoku.css';
 
 export default function SudokuGrid({ grid, given, invalid, selected, solved, onSelect, focusKeyboard }) {

@@ -1,3 +1,11 @@
+/*
+ * Datei: loading.jsx
+ * Inhalt: Diese Datei rendert den Ladebildschirm der Anwendung.
+ *         Sichtbar sind das App-Logo, ein Ladehinweis und einfache
+ *         visuelle Effekte, solange die App initialisiert wird
+ *         oder noch auf den Authentifizierungsstatus wartet.
+ */
+
 export default function LoadingScreen() {
   const base = import.meta.env.BASE_URL || './';
 
