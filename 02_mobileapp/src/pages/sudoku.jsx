@@ -490,6 +490,8 @@ export default function SudokuPage(props) {
     }, [user, mode, difficulty, puzzleListIndex, puzzleIndex]);
 
     const applyLoadedSave = (data, fallbackMode, fallbackDifficulty, fallbackIndex) => {
+        // Beim Laden wird zuerst versucht, den gespeicherten String-Stand wiederherzustellen.
+        // Falls das nicht möglich ist, wird das Sudoku aus Seed und Maske rekonstruiert.
         const loadedMode = data.mode === 'daily' ? 'daily' : data.mode === 'offline' ? 'offline' : fallbackMode;
         const loadedDifficulty = data.difficulty || fallbackDifficulty || 'easy';
         const loadedPuzzleIndex = Number.isFinite(data.puzzleIndex) ? data.puzzleIndex : fallbackIndex;
@@ -694,7 +696,7 @@ export default function SudokuPage(props) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selected, solved]);
 
-    // Lädt je nach Modus ein neues lokales Sudoku.
+    // Lädt je nach Modus ein neues lokales Sudoku aus den vorbereiteten Seed-/Mask-Daten.
     const loadPuzzleForMode = (diff, nextMode = mode) => {
         const dateKey = getLocalDateKey();
         const nextPick =
@@ -713,6 +715,7 @@ export default function SudokuPage(props) {
     };
 
     const applySelection = (sel) => {
+        // Diese Auswahl kommt entweder aus der Route oder aus dem zuvor gespeicherten Session-Objekt.
         if (!sel) return;
         const nextMode = sel.mode === 'daily' || sel.mode === 'offline' ? sel.mode : null;
         const nextDifficulty =
@@ -776,6 +779,7 @@ export default function SudokuPage(props) {
     }, [props?.f7route?.query?.mode, props?.f7route?.query?.difficulty, props?.f7route?.query?.puzzleIndex]);
 
     const checkSolution = async () => {
+        // Die Abschlussprüfung kontrolliert Zeilen, Spalten und 3x3-Blöcke vollständig.
         const ok = isSolvedGrid(grid);
         if (ok) {
             setSolved(true);
@@ -877,7 +881,7 @@ export default function SudokuPage(props) {
                         Rückgängig
                     </Button>
 
-                    {/* ✅ Speichern-Button */}
+                    {/* Manueller Speicherbutton für angemeldete Nutzer */}
                     <Button fill disabled={!user || savingNow || loadingSave} onClick={manualSave}>
                         {savingNow ? 'Speichere…' : 'Speichern'}
                     </Button>

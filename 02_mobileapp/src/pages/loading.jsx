@@ -2,6 +2,7 @@ export default function LoadingScreen() {
   const base = import.meta.env.BASE_URL || './';
 
   return (
+    // Einfacher Startbildschirm, solange Authentifizierung und App-Initialisierung laufen.
     <div className="app-loading-screen">
       <div className="app-loading-screen__glow app-loading-screen__glow--left" />
       <div className="app-loading-screen__glow app-loading-screen__glow--right" />

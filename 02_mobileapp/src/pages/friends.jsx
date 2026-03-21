@@ -106,20 +106,20 @@ export default function FriendsPage({ f7router }) {
     const [user, setUser] = useState(null);
     const [nowTs, setNowTs] = useState(Date.now());
 
-    // Suche
+    // Suche nach anderen Nutzern über deren Username
     const [searchText, setSearchText] = useState('');
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
 
-    // Vorschläge
+    // Vorschlagsliste auf Basis aktueller Nutzerkonten
     const [suggestions, setSuggestions] = useState([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
-    // Requests
+    // Eingehende und ausgehende Freundschaftsanfragen
     const [incoming, setIncoming] = useState([]);
     const [outgoing, setOutgoing] = useState([]);
 
-    // Friends
+    // Bestehende Freundschaften und dazu geladene Profildaten
     const [friendsDocs, setFriendsDocs] = useState([]);
     const [friendsProfiles, setFriendsProfiles] = useState({}); // uid -> { username, avatarId, online, lastSeen, lastLocation }
     const [resolvedLocationLabels, setResolvedLocationLabels] = useState({}); // uid -> "Stadt, Land"
@@ -138,7 +138,7 @@ export default function FriendsPage({ f7router }) {
     const myUid = user?.uid || null;
 
     // -------------------------
-    // Vorschläge: neueste users
+    // Vorschläge: einige der zuletzt angelegten Nutzerkonten
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -246,7 +246,7 @@ export default function FriendsPage({ f7router }) {
     }, [myUid]);
 
     // -------------------------
-    // Freunde-Profile live (inkl. Online/Offline)
+    // Freunde-Profile live, damit Online-Status und Standort aktuell bleiben
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -291,7 +291,7 @@ export default function FriendsPage({ f7router }) {
     }, [friendsDocs, myUid]);
 
     // -------------------------
-    // Friend/Request profiles nachladen (für Anzeige)
+    // Zusätzliche Profile nachladen, damit Anfragen und Freundeslisten sprechende Namen anzeigen
     // -------------------------
     useEffect(() => {
         if (!myUid) return;
@@ -350,7 +350,7 @@ export default function FriendsPage({ f7router }) {
     }, [friendsDocs, incoming, outgoing, myUid]);
 
     // -------------------------
-    // Fallback: Wenn nur Koordinaten da sind, Standortlabel clientseitig auflösen
+    // Falls nur Koordinaten vorhanden sind, wird clientseitig ein lesbares Standortlabel ermittelt
     // -------------------------
     useEffect(() => {
         const candidates = Object.entries(friendsProfiles)
@@ -388,7 +388,7 @@ export default function FriendsPage({ f7router }) {
     }, [friendsProfiles, resolvedLocationLabels]);
 
     // -------------------------
-    // Suche: nur usernameLower (exakt)
+    // Die Suche erfolgt bewusst exakt über usernameLower
     // -------------------------
     const handleSearch = async () => {
         if (!myUid) {
@@ -436,10 +436,7 @@ export default function FriendsPage({ f7router }) {
     };
 
     // -------------------------
-    // Request senden
-    // Fix: createdAt/updatedAt sofort mit Client-Zeit setzen,
-    // damit orderBy(createdAt) das Doc DIREKT im Snapshot sieht.
-    // Zusätzlich Server-Timestamps in *Server Feldern* speichern.
+    // Neue Freundschaftsanfrage an einen anderen Nutzer senden
     // -------------------------
     const sendRequest = async (toUid) => {
         if (!myUid) return;
@@ -471,11 +468,11 @@ export default function FriendsPage({ f7router }) {
                 toUid,
                 status: 'pending',
 
-                // ✅ sofort vorhanden -> Snapshot-Query (orderBy createdAt) nimmt es direkt mit
+                // Sofort vorhanden, damit die Anfrage direkt in geordneten Snapshots sichtbar ist
                 createdAt: now,
                 updatedAt: now,
 
-                // optional: echte Serverzeit zusätzlich (falls du später server-time brauchst)
+                // Zusätzliche Serverzeit für spätere Auswertungen
                 createdAtServer: serverTimestamp(),
                 updatedAtServer: serverTimestamp(),
             });

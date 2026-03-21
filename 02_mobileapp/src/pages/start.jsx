@@ -5,6 +5,8 @@ export default function StartPage() {
 
   return (
     <Page name="start" className="start-screen-page">
+      {/* Visueller Einstieg der App mit zwei Hauptpfaden:
+          Daily Challenge oder Wechsel ins Sudoku-Menü. */}
       <div className="start-screen">
         <div className="start-screen__halo start-screen__halo--left" />
         <div className="start-screen__halo start-screen__halo--right" />
@@ -23,6 +25,8 @@ export default function StartPage() {
             Fuege Freunde hinzu und fordere sie heraus. Loese taegliche Sudokus, um es mit deinen Erfolgen in den Newsfeed zu schaffen.
           </p>
 
+          {/* Der Nutzer kann direkt in das taegliche Sudoku springen
+              oder zuerst die gewoehnliche Sudoku-Auswahl oeffnen. */}
           <div className="start-screen__actions">
             <Button fill large href="/sudoku/?mode=daily" className="start-screen__btn start-screen__btn--daily">
               Daily Sudoku starten

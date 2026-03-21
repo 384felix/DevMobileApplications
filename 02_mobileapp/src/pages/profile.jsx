@@ -103,21 +103,21 @@ function normalizeLocationFailReason(error) {
 const ProfilePage = () => {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
 
-  // Login/Register
+  // Login- und Registrierungsfelder
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [regUsername, setRegUsername] = useState('');
   const [regUsernameStatus, setRegUsernameStatus] = useState('idle'); // idle|checking|available|taken|invalid
 
-  // User
+  // Angemeldeter Nutzer
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Online
+  // Online-Status für die Seite
   const [online, setOnline] = useState(true);
 
-  // Profil-Daten (USERNAME ONLY)
+  // Profil-Daten, die auf der Seite bearbeitet oder angezeigt werden
   const [profileLoading, setProfileLoading] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [locationStatus, setLocationStatus] = useState('Unbekannt');
@@ -244,6 +244,7 @@ const ProfilePage = () => {
 
   // Presence (online/offline in Firestore) wird global in components/app.jsx gepflegt.
 
+  // Lädt die gespeicherten Profildaten des aktuellen Nutzers aus Firestore.
   const loadProfileFromFirebase = async (firebaseUser) => {
     if (!firebaseUser) return;
     const ref = doc(db, 'users', firebaseUser.uid);
@@ -295,7 +296,7 @@ const ProfilePage = () => {
     }
   };
 
-  // ---- Profil laden aus Firestore: users/{uid}
+  // Sobald sich der Nutzer ändert, wird das passende Profil nachgeladen.
   useEffect(() => {
     if (!user) {
       setProfile({ username: '', avatarId: AVATAR_IDS[0] });
@@ -306,7 +307,7 @@ const ProfilePage = () => {
     loadProfileFromFirebase(user);
   }, [user]);
 
-  // Standort nur in Profilseite aktualisieren und als Stadt anzeigen
+  // Die Profilseite aktualisiert den Standort und speichert ihn als lesbares Stadt-/Land-Paar.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -427,7 +428,7 @@ const ProfilePage = () => {
     };
   }, [profile.username, profile.avatarId, locationPermission, locationStatus]);
 
-  // ---- Login/Register/Logout
+  // Authentifizierungsaktionen für Login, Registrierung und Logout
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       f7.dialog.alert('Bitte E-Mail und Passwort eingeben.');
@@ -444,7 +445,7 @@ const ProfilePage = () => {
 
   const normalizeUsername = (raw) => (raw || '').trim().toLowerCase();
 
-  // Live Username-Check beim Registrieren
+  // Prüft bei der Registrierung laufend, ob ein Username bereits reserviert ist.
   useEffect(() => {
     if (mode !== 'register') return;
     const usernameLower = normalizeUsername(regUsername);
@@ -572,7 +573,7 @@ const ProfilePage = () => {
     }
   };
 
-  // ---- Profil speichern (Username eindeutig via usernames/{usernameLower})
+  // Speichert Profiländerungen und sichert die Eindeutigkeit des Usernamens.
   const saveProfile = async () => {
     if (!user) return;
 

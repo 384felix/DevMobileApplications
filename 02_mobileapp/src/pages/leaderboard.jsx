@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Page, Navbar, Block, NavRight, List, ListItem, Button, f7 } from 'framework7-react';
 import ProfileButton from '../components/ProfileButton.jsx';
 import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
@@ -21,6 +21,7 @@ export default function LeaderboardPage() {
         return () => unsub();
     }, []);
 
+    // Der Feed basiert auf Sudoku-Ereignissen, die beim Lösen eines Rätsels gespeichert werden.
     useEffect(() => {
         const q = query(collection(db, 'sudokuEvents'), orderBy('createdAt', 'desc'), limit(200));
         const unsub = onSnapshot(q, (snap) => {
@@ -61,6 +62,7 @@ export default function LeaderboardPage() {
         };
     }, [uid]);
 
+    // Die Filter werden auf Datenebene angewendet, bevor Rangliste oder Feed gerendert werden.
     const filteredEvents = useMemo(() => {
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
@@ -77,6 +79,7 @@ export default function LeaderboardPage() {
         });
     }, [events, friendUids, scopeFilter, timeFilter, difficultyFilter]);
 
+    // Die Rangliste berechnet sich aus den im Feed vorhandenen Sudoku-Erfolgen.
     const rankingRows = useMemo(() => {
         const pointsByDifficulty = {
             easy: 10,
@@ -155,6 +158,7 @@ export default function LeaderboardPage() {
         };
     }, [viewMode, filteredEvents, uid]);
 
+    // Reaktionen werden getrennt vom eigentlichen Sudoku-Ereignis gespeichert.
     const toggleClapReaction = async (eventId) => {
         if (!eventId) return;
         if (!uid) {

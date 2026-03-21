@@ -82,6 +82,31 @@ Die App unterstuetzt ausserdem Online-/Offline-Erkennung sowie einfache Profilin
 - **Backend-Dienste:** Firebase Authentication + Firestore
 - **Statische Sudoku-Daten:** `tools/puzzles.json`
 
+## Wie die Sudokus erzeugt und geprueft werden
+
+Die Sudokus werden nicht bei jedem App-Start neu berechnet, sondern vorab vorbereitet.  
+Die Datei `tools/generate-sudoku.js` erzeugt aus einer festen gueltigen Sudoku-Basis neue Varianten. Dazu werden Zahlen, Zeilen, Spalten und 3x3-Bloecke systematisch umgeordnet. Anschliessend wird ueber eine Maske festgelegt, welche Felder sichtbar bleiben und welche als leere Felder im Raetsel erscheinen.
+
+Bei der Erzeugung wird darauf geachtet, dass ein Sudoku **genau eine eindeutige Loesung** besitzt.  
+Das Generator-Skript prueft deshalb jedes erzeugte Raetsel mit einem Loesungszaehler. Nur wenn genau eine Loesung gefunden wird, wird das Raetsel in die Datei `tools/puzzles.json` uebernommen.
+
+In der App selbst werden die Sudokus nicht als vollstaendige Textbeschreibung angezeigt, sondern intern ueber einen kompakten technischen Aufbau verwaltet:
+
+- `seed`: beschreibt, wie aus der Basisloesung eine konkrete Sudoku-Variante erzeugt wird
+- `mask`: beschreibt als 81-stellige Zeichenkette, welche Felder sichtbar und welche leer sind
+- `puzzleStr` und `gridStr`: speichern Startzustand und aktuellen Spielstand in kompakter String-Form
+
+Wenn ein Nutzer ein Sudoku spielt, wird der aktuelle Stand in dieser kompakten Form gespeichert.  
+Beim spaeteren Laden kann daraus wieder das 9x9-Feld rekonstruiert werden.
+
+Sobald der Nutzer das Sudoku fertig ausgefuellt hat, folgt in `src/pages/sudoku.jsx` der Abgleich:
+
+- zuerst wird geprueft, ob alle Felder gefuellt sind,
+- danach wird kontrolliert, ob jede Zeile, jede Spalte und jeder 3x3-Block die Zahlen 1 bis 9 genau einmal enthaelt,
+- nur wenn diese Pruefung erfolgreich ist, gilt das Sudoku als korrekt geloest.
+
+Erst dann wird das Sudoku als geloest markiert und der geloeste Stand lokal beziehungsweise in Firebase gespeichert.
+
 ## Lokales Starten des Projekts
 
 Im Ordner `02_mobileapp`:

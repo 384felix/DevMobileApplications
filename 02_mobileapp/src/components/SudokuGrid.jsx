@@ -1,9 +1,10 @@
-import React from 'react';
 import './sudoku.css';
 
 export default function SudokuGrid({ grid, given, invalid, selected, solved, onSelect, focusKeyboard }) {
     return (
         <div className="sudoku-grid-wrapper">
+            {/* Das Raster selbst ist rein darstellend.
+                Die eigentliche Spiellogik bleibt in sudoku.jsx. */}
             <div className={`sudoku-grid ${solved ? 'solved' : ''}`} role="grid" aria-label="Sudoku grid">
                 {grid.map((row, r) =>
                     row.map((val, c) => {
@@ -25,7 +26,7 @@ export default function SudokuGrid({ grid, given, invalid, selected, solved, onS
                             e.preventDefault();
                             onSelect(r, c);
 
-                            // Keyboard nur für editierbare Zellen und nicht wenn solved
+                            // Die Eingabehilfe wird nur für veränderbare Zellen geöffnet.
                             if (!isGiven && !solved) focusKeyboard?.();
                         };
 

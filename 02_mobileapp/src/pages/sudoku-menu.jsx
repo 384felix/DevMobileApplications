@@ -86,15 +86,17 @@ export default function SudokuMenuPage() {
                             ? 'Hard'
                             : 'Sudoku';
             const idx = Number.isFinite(lastPlayed.index) ? `${lastPlayed.index + 1}` : '';
-            return `${diff}${idx}`;
+            return idx ? `${diff} ${idx}` : diff;
         }
         return 'Keine';
     })();
 
+    // Startet direkt das eigentliche Sudoku-Brett mit einer Query-Auswahl.
     const goToSudoku = (query) => {
         f7.views.main?.router.navigate('/sudoku/', { query });
     };
 
+    // Speichert die Auswahl kurz in der Session, damit sudoku.jsx sie beim Öffnen übernehmen kann.
     const continueToSudoku = (selection) => {
         try {
             sessionStorage.setItem('sudokuSelection', JSON.stringify(selection));
@@ -114,6 +116,7 @@ export default function SudokuMenuPage() {
         return false;
     })();
 
+    // Baut aus dem zuletzt gespielten Datensatz wieder eine gültige Navigation auf.
     const continueLastPlayed = () => {
         if (!lastPlayed) return;
         if (lastPlayed.mode === 'daily') {
@@ -148,6 +151,7 @@ export default function SudokuMenuPage() {
                         Starten
                     </Button>
 
+                    {/* Die Offline-Sudokus sind nach Schwierigkeitsgrad in Listen aufgeteilt. */}
                     <div className="sudoku-menu-section-title sudoku-menu-section-title--offline">Offline Sudokus</div>
                     <div className="sudoku-menu-difficulties">
                         <Button outline onClick={() => goToList('easy')}>

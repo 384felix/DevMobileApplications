@@ -7,6 +7,8 @@ import ProfilePage from '../pages/profile.jsx';
 import NotFoundPage from '../pages/404.jsx';
 import LeaderboardPage from '../pages/leaderboard.jsx';
 
+// Zentrale Routen-Tabelle der App.
+// Jede URL wird hier genau einer React-Seite zugeordnet.
 var routes = [
   { path: '/', redirect: '/start/' },
   { path: '/start/', component: StartPage },
@@ -21,8 +23,6 @@ var routes = [
   { path: '/login/', redirect: '/profile/' },
 
   { path: '(.*)', component: NotFoundPage },
-
-
 ];
 
 export default routes;
